@@ -1,12 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"gioui.org/app"
@@ -30,33 +29,75 @@ func main() {
 	app.Main()
 }
 
-func escapeControlSequences(p []byte) []byte {
-	var buf bytes.Buffer
-	for _, b := range p {
-		if b < 32 || b == 127 {
-			// This escapes the control character to a visible representation.
-			// You can change the format to your liking.
-			buf.WriteString(fmt.Sprintf("^%c", b+'@'))
-		} else {
-			buf.WriteByte(b)
-		}
-	}
-	return buf.Bytes()
+const (
+	width  = 80
+	height = 25
+)
+
+type Screen struct {
+	rows    [height][width]rune // characters on screen
+	cursorX int                 // cursor's X position
+	cursorY int                 // cursor's Y position
 }
 
-func copyAndEscapeControlSequences(dst io.Writer, src io.Reader) {
+func NewScreen() *Screen {
+	return &Screen{}
+}
+
+func (s *Screen) WriteRune(r rune) {
+	if s.cursorX >= width {
+		s.cursorX = 0
+		s.cursorY++
+	}
+	if s.cursorY >= height {
+		log.Printf("resetting screen\n %s", s.String())
+		// Scroll or handle overflow. For simplicity, we're resetting here.
+		s.cursorY = 0
+	}
+	s.rows[s.cursorY][s.cursorX] = r
+	s.cursorX++
+}
+
+func (s *Screen) String() string {
+	var buf strings.Builder
+	for _, row := range s.rows {
+		for _, r := range row {
+			buf.WriteRune(r)
+		}
+		buf.WriteRune('\n')
+	}
+	return buf.String()
+}
+
+func handleControlSequences(screen *Screen, p []byte) {
+	for i := 0; i < len(p); i++ {
+		b := p[i]
+		switch {
+		case b == '\n':
+			screen.cursorX = 0
+			screen.cursorY++
+		case b == 27 && i+1 < len(p) && p[i+1] == '[': // Escape sequence starts with \x1B[
+			// Implement more sequences as needed.
+			// For instance: "\x1B[2J" clears the screen.
+			// But for now, we'll skip the sequence for simplicity.
+			i += 2
+		default:
+			screen.WriteRune(rune(b))
+		}
+	}
+}
+
+func copyAndHandleControlSequences(screen *Screen, src io.Reader) {
 	buf := make([]byte, 1024)
 	for {
 		n, err := src.Read(buf)
 		if err != nil {
 			return
 		}
-		escaped := escapeControlSequences(buf[:n])
-		_, _ = dst.Write(escaped)
+		handleControlSequences(screen, buf[:n])
 	}
 }
-
-func test(textBuf *bytes.Buffer) error {
+func test(screen *Screen) error {
 	defaultShell, exists := os.LookupEnv("SHELL")
 	if !exists {
 		log.Fatal("could not find default shell from $SHELL")
@@ -71,7 +112,7 @@ func test(textBuf *bytes.Buffer) error {
 	}
 	// Make sure to close the pty at the end.
 	defer func() { _ = ptmx.Close() }() // Best effort.
-	go copyAndEscapeControlSequences(textBuf, ptmx)
+	go copyAndHandleControlSequences(screen, ptmx)
 	// Wait for 2 seconds.
 	time.Sleep(2 * time.Second)
 
@@ -86,9 +127,9 @@ func loop(w *app.Window) error {
 	th := material.NewTheme()
 	var ops op.Ops
 	var sel widget.Selectable
-	var buf bytes.Buffer
 
-	test(&buf)
+	screen := NewScreen()
+	test(screen)
 
 	const (
 		minLinesRange = 1
@@ -104,7 +145,7 @@ func loop(w *app.Window) error {
 			inset := layout.UniformInset(5)
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					l := material.Label(th, 16, buf.String())
+					l := material.Label(th, 16, screen.String())
 					l.Font.Typeface = font.Typeface("Go Mono")
 					l.MaxLines = 24
 					l.Truncator = ""
