@@ -94,6 +94,12 @@ func (s *Screen) Tab() {
 	}
 }
 
+func (s *Screen) Backspace() {
+	x, y := s.cursorX, s.cursorY
+	s.rows[y][x-1] = ' '
+	s.cursorX = x - 1
+}
+
 func (s *Screen) MoveCursor(dx, dy int) {
 	s.cursorX += dx
 	s.cursorY += dy
@@ -117,9 +123,17 @@ func handleControlSequences(screen *Screen, p []byte) {
 		b := p[i]
 		fmt.Printf("0x%x,", b)
 		switch {
-		case b == tab:
+		case b == asciiTAB:
 			screen.Tab()
+		case b == asciiBS:
+			screen.Backspace()
 		case b == '\n':
+			// This really should be more complex. There is a tty setting `onlcr` that instructs tty to give me CR-LF for every LF sent to it
+			// and I should somehow find out if this setting is enabled and parse CR-LF based on that
+			// also, it could happen that I get the CR at the end of one buffer and LF at the start of other ¯\_(ツ)_/¯
+			fmt.Println("encountered LF character -ignoring")
+		case b == '\r' && i+1 < len(p) && p[i+1] == '\n':
+			fmt.Println("encountered CR character")
 			screen.cursorX = 0
 			screen.cursorY++
 		case b == 27 && i+1 < len(p) && p[i+1] == '[':
@@ -235,30 +249,11 @@ func loop(w *app.Window) error {
 				if ke, ok := ev.(key.Event); ok {
 					fmt.Println("key pressed", ke)
 					if ke.State == key.Press {
-						// Handle ANSI escape sequence for Enter key
-						if ke.Name == key.NameReturn {
-							_, err := ptmx.Write([]byte("\n")) // Line Feed
-							if err != nil {
-								return err
-							}
-						} else if ke.Name == key.NameSpace {
-							_, err := ptmx.Write([]byte(" "))
-							if err != nil {
-								return err
-							}
-						} else {
-							// For normal characters, pass them through.
-							var character string
-							if ke.Modifiers.Contain(key.ModShift) {
-								character = strings.ToUpper(ke.Name)
-							} else {
-								character = strings.ToLower(ke.Name)
-							}
-							_, err := ptmx.Write([]byte(character))
-							if err != nil {
-								return err
-							}
+						_, err := ptmx.Write(keyToBytes(ke.Name, ke.Modifiers))
+						if err != nil {
+							return err
 						}
+
 					}
 				}
 			}
@@ -275,5 +270,38 @@ func loop(w *app.Window) error {
 			)
 			e.Frame(gtx.Ops)
 		}
+	}
+}
+
+func keyToBytes(name string, mod key.Modifiers) []byte {
+	switch name {
+	// Handle ANSI escape sequence for Enter key
+	case key.NameReturn:
+		return []byte("\r")
+	case key.NameDeleteBackward:
+		return []byte{0x08}
+	case key.NameSpace:
+		return []byte(" ")
+	case key.NameEscape:
+		return []byte{0x1B}
+	case key.NameTab:
+		return []byte{0x09}
+	case key.NameUpArrow:
+		return []byte{0x1b, '[', 'A'}
+	case key.NameDownArrow:
+		return []byte{0x1b, '[', 'B'}
+	case key.NameRightArrow:
+		return []byte{0x1b, '[', 'C'}
+	case key.NameLeftArrow:
+		return []byte{0x1b, '[', 'D'}
+	default:
+		// For normal characters, pass them through.
+		var character string
+		if mod.Contain(key.ModShift) {
+			character = strings.ToUpper(name)
+		} else {
+			character = strings.ToLower(name)
+		}
+		return []byte(character)
 	}
 }

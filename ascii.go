@@ -1,3 +1,4 @@
 package main
 
-const tab = 0x09
+const asciiBS = 0x08
+const asciiTAB = 0x09
