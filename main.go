@@ -274,12 +274,20 @@ func loop(w *app.Window) error {
 }
 
 func keyToBytes(name string, mod key.Modifiers) []byte {
+	if mod.Contain(key.ModCtrl) {
+		switch name {
+		case "C":
+			return []byte{asciiETX} // return ETX (end of text, ^C)
+		case "D":
+			return []byte{asciiEOT} // return EOT (end of transmission)
+		}
+	}
 	switch name {
 	// Handle ANSI escape sequence for Enter key
 	case key.NameReturn:
 		return []byte("\r")
 	case key.NameDeleteBackward:
-		return []byte{0x08}
+		return []byte{asciiBS}
 	case key.NameSpace:
 		return []byte(" ")
 	case key.NameEscape:
