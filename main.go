@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"os"
@@ -18,14 +19,19 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/creack/pty"
 	"golang.org/x/image/math/fixed"
 )
 
-func fixedToFloat(i fixed.Int26_6) float32 {
-	return float32(i) / 64.0
+func fixedToFloat(i fixed.Int26_6) float64 {
+	return float64(i) / 64.0
+}
+
+func div(a, b fixed.Int26_6) fixed.Int26_6 {
+	return (a * (1 << 6)) / b
 }
 
 func main() {
@@ -105,22 +111,21 @@ func (s *Screen) Tab() {
 
 // Resize changes ensures that the dimensions are rows x cols
 // returns true if the dimensions changed, otherwise returns false
-func (s *Screen) Resize(rows, cols int) bool {
-	fmt.Printf("resizing screen rows: %v, cols: %v\n", rows, cols)
-	if s.size.rows == rows && s.size.cols == cols {
+func (s *Screen) Resize(size ScreenSize) bool {
+	fmt.Printf("resizing screen : %+v\n", size)
+	if s.size.rows == size.rows && s.size.cols == size.cols {
 		fmt.Println("ignoring resize")
 		return false
 	}
 	oldSize := s.size
 	oldLines := s.lines
-	s.size = ScreenSize{rows: rows, cols: cols}
-	s.size.cols = cols
+	s.size = size
 	s.lines = nil
-	for i := 0; i < rows; i++ {
-		s.lines = append(s.lines, make([]rune, cols))
+	for i := 0; i < size.rows; i++ {
+		s.lines = append(s.lines, make([]rune, size.cols))
 	}
-	for r := 0; r < oldSize.rows && r < rows; r++ {
-		for c := 0; c < oldSize.cols && c < cols; c++ {
+	for r := 0; r < oldSize.rows && r < size.rows; r++ {
+		for c := 0; c < oldSize.cols && c < size.cols; c++ {
 			s.lines[r][c] = oldLines[r][c]
 		}
 	}
@@ -230,6 +235,7 @@ func loop(w *app.Window) error {
 
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+
 	var ops op.Ops
 	var sel widget.Selectable
 
@@ -260,13 +266,12 @@ func loop(w *app.Window) error {
 		case system.DestroyEvent:
 			return e.Err
 		case system.FrameEvent:
-			cols := int((float64(e.Size.X) - 40) / 19.25)
-			rows := int((float64(e.Size.Y) - 40) / 38.4)
-			resized := screen.Resize(int(rows), int(cols))
-			if resized {
-				pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
-			}
 			gtx := layout.NewContext(&ops, e)
+			windowSize := getScreenSize(gtx, 16, e.Size, th)
+			resized := screen.Resize(windowSize)
+			if resized {
+				pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(windowSize.rows), Cols: uint16(windowSize.cols)})
+			}
 			// keep the focus, since only one thing can
 			key.FocusOp{Tag: &location}.Add(&ops)
 			// register tag &location as reading input
@@ -342,4 +347,40 @@ func keyToBytes(name string, mod key.Modifiers) []byte {
 		}
 		return []byte(character)
 	}
+}
+
+func generateTestContent(rows, cols int) string {
+	makeRow := func(char, size int) string {
+		ch := fmt.Sprintf("%d", char)
+		var sb strings.Builder
+		for i := 0; i < cols; i++ {
+			sb.Write([]byte{ch[len(ch)-1]})
+		}
+		return sb.String()
+	}
+	var rb strings.Builder
+	for i := 0; i < rows; i++ {
+		rb.WriteString(makeRow(i, cols))
+	}
+	return rb.String()
+}
+
+func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) ScreenSize {
+	params := text.Parameters{
+		Font: font.Font{
+			Typeface: font.Typeface("go mono, monospace"),
+		},
+		PxPerEm: fixed.I(gtx.Sp(16)),
+	}
+	th.Shaper.Layout(params, strings.NewReader("A"))
+	g, ok := th.Shaper.NextGlyph()
+	if !ok {
+		log.Println("ok is false for the next glyph")
+	}
+	glyphWidth := g.Advance
+	glyphHeight := g.Ascent + g.Descent
+	cols := div(fixed.I(windowSize.X-20), glyphWidth).Floor()
+	rows := div(fixed.I(windowSize.Y-60), glyphHeight).Floor()
+	return ScreenSize{rows: rows, cols: cols}
+
 }
