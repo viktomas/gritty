@@ -21,7 +21,12 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/creack/pty"
+	"golang.org/x/image/math/fixed"
 )
+
+func fixedToFloat(i fixed.Int26_6) float32 {
+	return float32(i) / 64.0
+}
 
 func main() {
 	go func() {
@@ -34,40 +39,44 @@ func main() {
 	app.Main()
 }
 
-const (
-	width  = 80
-	height = 25
-)
-
 type Screen struct {
-	rows    [height][width]rune // characters on screen
-	cursorX int                 // cursor's X position
-	cursorY int                 // cursor's Y position
+	lines   [][]rune // characters on screen
+	size    ScreenSize
+	cursorX int // cursor's X position
+	cursorY int // cursor's Y position
 }
 
-func NewScreen() *Screen {
-	screen := &Screen{}
+type ScreenSize struct {
+	rows int
+	cols int
+}
+
+func NewScreen(rows, cols int) *Screen {
+	screen := &Screen{size: ScreenSize{rows: rows, cols: cols}}
+	for i := 0; i < rows; i++ {
+		screen.lines = append(screen.lines, make([]rune, cols))
+	}
 	screen.Clear()
 	return screen
 }
 
 func (s *Screen) WriteRune(r rune) {
-	if s.cursorX >= width {
+	if s.cursorX >= s.size.cols {
 		s.cursorX = 0
 		s.cursorY++
 	}
-	if s.cursorY >= height {
+	if s.cursorY >= s.size.rows {
 		log.Printf("resetting screen\n %s", s.String())
 		// Scroll or handle overflow. For simplicity, we're resetting here.
 		s.cursorY = 0
 	}
-	s.rows[s.cursorY][s.cursorX] = r
+	s.lines[s.cursorY][s.cursorX] = r
 	s.cursorX++
 }
 
 func (s *Screen) String() string {
 	var buf strings.Builder
-	for _, row := range s.rows {
+	for _, row := range s.lines {
 		for _, r := range row {
 			buf.WriteRune(r)
 		}
@@ -77,9 +86,9 @@ func (s *Screen) String() string {
 }
 
 func (s *Screen) Clear() {
-	for y := range s.rows {
-		for x := range s.rows[y] {
-			s.rows[y][x] = ' ' // replace with space
+	for y := range s.lines {
+		for x := range s.lines[y] {
+			s.lines[y][x] = ' ' // replace with space
 		}
 	}
 	s.cursorX, s.cursorY = 0, 0
@@ -87,16 +96,41 @@ func (s *Screen) Clear() {
 
 func (s *Screen) Tab() {
 	newX := (s.cursorX / 8 * 8) + 8
-	if newX < width {
+	if newX < s.size.cols {
 		s.cursorX = newX
 	} else {
-		s.cursorX = width - 1 // if the tab can't be fully added, lets move the cursor to the last column
+		s.cursorX = s.size.cols - 1 // if the tab can't be fully added, lets move the cursor to the last column
 	}
+}
+
+// Resize changes ensures that the dimensions are rows x cols
+// returns true if the dimensions changed, otherwise returns false
+func (s *Screen) Resize(rows, cols int) bool {
+	fmt.Printf("resizing screen rows: %v, cols: %v\n", rows, cols)
+	if s.size.rows == rows && s.size.cols == cols {
+		fmt.Println("ignoring resize")
+		return false
+	}
+	oldSize := s.size
+	oldLines := s.lines
+	s.size = ScreenSize{rows: rows, cols: cols}
+	s.size.cols = cols
+	s.lines = nil
+	for i := 0; i < rows; i++ {
+		s.lines = append(s.lines, make([]rune, cols))
+	}
+	for r := 0; r < oldSize.rows && r < rows; r++ {
+		for c := 0; c < oldSize.cols && c < cols; c++ {
+			s.lines[r][c] = oldLines[r][c]
+		}
+	}
+	fmt.Printf("screen resized rows: %v, cols: %v\n", s.size.rows, s.size.cols)
+	return true
 }
 
 func (s *Screen) Backspace() {
 	x, y := s.cursorX, s.cursorY
-	s.rows[y][x-1] = ' '
+	s.lines[y][x-1] = ' '
 	s.cursorX = x - 1
 }
 
@@ -106,14 +140,14 @@ func (s *Screen) MoveCursor(dx, dy int) {
 
 	if s.cursorX < 0 {
 		s.cursorX = 0
-	} else if s.cursorX >= width {
-		s.cursorX = width - 1
+	} else if s.cursorX >= s.size.cols {
+		s.cursorX = s.size.cols - 1
 	}
 
 	if s.cursorY < 0 {
 		s.cursorY = 0
-	} else if s.cursorY >= height {
-		s.cursorY = height - 1
+	} else if s.cursorY >= s.size.rows {
+		s.cursorY = s.size.rows - 1
 	}
 }
 
@@ -199,7 +233,7 @@ func loop(w *app.Window) error {
 	var ops op.Ops
 	var sel widget.Selectable
 
-	screen := NewScreen()
+	screen := NewScreen(25, 80)
 	// defaultShell, exists := os.LookupEnv("SHELL")
 	// if !exists {
 	// 	log.Fatal("could not find default shell from $SHELL")
@@ -216,25 +250,22 @@ func loop(w *app.Window) error {
 	// Make sure to close the pty at the end.
 	defer func() { _ = ptmx.Close() }() // Best effort.
 	go copyAndHandleControlSequences(screen, ptmx)
-	// // Wait for 2 seconds.
-	// time.Sleep(2 * time.Second)
-	//
-	// // Send CTRL+D control character.
-	// _, _ = ptmx.Write([]byte{0x04})
 
 	var location = f32.Pt(300, 300)
 	// var arrowKeys = key.Set(strings.Join([]string{key.NameLeftArrow, key.NameUpArrow, key.NameRightArrow, key.NameDownArrow}, "|"))
 
-	const (
-		minLinesRange = 1
-		maxLinesRange = 25
-	)
 	for {
 		e := <-w.Events()
 		switch e := e.(type) {
 		case system.DestroyEvent:
 			return e.Err
 		case system.FrameEvent:
+			cols := int((float64(e.Size.X) - 40) / 19.25)
+			rows := int((float64(e.Size.Y) - 40) / 38.4)
+			resized := screen.Resize(int(rows), int(cols))
+			if resized {
+				pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+			}
 			gtx := layout.NewContext(&ops, e)
 			// keep the focus, since only one thing can
 			key.FocusOp{Tag: &location}.Add(&ops)
@@ -261,8 +292,7 @@ func loop(w *app.Window) error {
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					l := material.Label(th, 16, screen.String())
-					l.Font.Typeface = font.Typeface("go mono, monospaced")
-					l.MaxLines = 24
+					l.Font.Typeface = font.Typeface("go mono, monospace")
 					l.Truncator = ""
 					l.State = &sel
 					return inset.Layout(gtx, l.Layout)
