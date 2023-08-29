@@ -46,7 +46,7 @@ func main() {
 }
 
 type Screen struct {
-	lines   [][]rune // characters on screen
+	lines   [][]rune
 	size    ScreenSize
 	cursorX int // cursor's X position
 	cursorY int // cursor's Y position
@@ -59,44 +59,47 @@ type ScreenSize struct {
 
 func NewScreen(rows, cols int) *Screen {
 	screen := &Screen{size: ScreenSize{rows: rows, cols: cols}}
-	for i := 0; i < rows; i++ {
-		screen.lines = append(screen.lines, make([]rune, cols))
-	}
 	screen.Clear()
 	return screen
 }
 
 func (s *Screen) WriteRune(r rune) {
-	if s.cursorX >= s.size.cols {
-		s.cursorX = 0
+	if r == '\n' {
 		s.cursorY++
+		return
 	}
-	if s.cursorY >= s.size.rows {
-		log.Printf("resetting screen\n %s", s.String())
-		// Scroll or handle overflow. For simplicity, we're resetting here.
-		s.cursorY = 0
+	for s.cursorY >= len(s.lines) {
+		s.lines = append(s.lines, []rune{})
+	}
+	for s.cursorX >= len(s.lines[s.cursorY]) {
+		s.lines[s.cursorY] = append(s.lines[s.cursorY], ' ')
 	}
 	s.lines[s.cursorY][s.cursorX] = r
 	s.cursorX++
 }
 
 func (s *Screen) String() string {
+	lines := s.lines
+	if len(s.lines) > s.size.rows {
+		lines = s.lines[len(s.lines)-s.size.rows:]
+	}
+
 	var buf strings.Builder
-	for _, row := range s.lines {
-		for _, r := range row {
-			buf.WriteRune(r)
+	for _, line := range lines {
+		runeLine := line
+		if len(runeLine) > s.size.cols {
+			buf.WriteString(string(runeLine[:s.size.cols]))
+		} else {
+			buf.WriteString(string(line))
 		}
-		buf.WriteRune('\n')
+		buf.WriteString("\n")
+
 	}
 	return buf.String()
 }
 
 func (s *Screen) Clear() {
-	for y := range s.lines {
-		for x := range s.lines[y] {
-			s.lines[y][x] = ' ' // replace with space
-		}
-	}
+	s.lines = [][]rune{}
 	s.cursorX, s.cursorY = 0, 0
 }
 
@@ -117,18 +120,18 @@ func (s *Screen) Resize(size ScreenSize) bool {
 		fmt.Println("ignoring resize")
 		return false
 	}
-	oldSize := s.size
-	oldLines := s.lines
+	// oldSize := s.size
+	// oldLines := s.lines
 	s.size = size
-	s.lines = nil
-	for i := 0; i < size.rows; i++ {
-		s.lines = append(s.lines, make([]rune, size.cols))
-	}
-	for r := 0; r < oldSize.rows && r < size.rows; r++ {
-		for c := 0; c < oldSize.cols && c < size.cols; c++ {
-			s.lines[r][c] = oldLines[r][c]
-		}
-	}
+	// s.lines = nil
+	// for i := 0; i < size.rows; i++ {
+	// 	s.lines = append(s.lines, make([]rune, size.cols))
+	// }
+	// for r := 0; r < oldSize.rows && r < size.rows; r++ {
+	// 	for c := 0; c < oldSize.cols && c < size.cols; c++ {
+	// 		s.lines[r][c] = oldLines[r][c]
+	// 	}
+	// }
 	fmt.Printf("screen resized rows: %v, cols: %v\n", s.size.rows, s.size.cols)
 	return true
 }
