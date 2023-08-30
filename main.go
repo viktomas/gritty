@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	"gioui.org/app"
@@ -26,13 +25,7 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-func fixedToFloat(i fixed.Int26_6) float64 {
-	return float64(i) / 64.0
-}
-
-func div(a, b fixed.Int26_6) fixed.Int26_6 {
-	return (a * (1 << 6)) / b
-}
+const monoTypeface = "go mono, monospaced"
 
 func main() {
 	go func() {
@@ -45,182 +38,26 @@ func main() {
 	app.Main()
 }
 
-type Screen struct {
-	lines   [][]rune
-	size    ScreenSize
-	cursorX int // cursor's X position
-	cursorY int // cursor's Y position
-}
-
-type ScreenSize struct {
-	rows int
-	cols int
-}
-
-func NewScreen(rows, cols int) *Screen {
-	screen := &Screen{size: ScreenSize{rows: rows, cols: cols}}
-	screen.Clear()
-	return screen
-}
-
-func (s *Screen) WriteRune(r rune) {
-	if r == '\n' {
-		s.cursorY++
-		return
-	}
-	for s.cursorY >= len(s.lines) {
-		s.lines = append(s.lines, []rune{})
-	}
-	for s.cursorX >= len(s.lines[s.cursorY]) {
-		s.lines[s.cursorY] = append(s.lines[s.cursorY], ' ')
-	}
-	s.lines[s.cursorY][s.cursorX] = r
-	s.cursorX++
-}
-
-func (s *Screen) String() string {
-	lines := s.lines
-	if len(s.lines) > s.size.rows {
-		lines = s.lines[len(s.lines)-s.size.rows:]
-	}
-
-	var buf strings.Builder
-	for _, line := range lines {
-		runeLine := line
-		if len(runeLine) > s.size.cols {
-			buf.WriteString(string(runeLine[:s.size.cols]))
-		} else {
-			buf.WriteString(string(line))
-		}
-		buf.WriteString("\n")
-
-	}
-	return buf.String()
-}
-
-func (s *Screen) Clear() {
-	s.lines = [][]rune{}
-	s.cursorX, s.cursorY = 0, 0
-}
-
-func (s *Screen) Tab() {
-	newX := (s.cursorX / 8 * 8) + 8
-	if newX < s.size.cols {
-		s.cursorX = newX
-	} else {
-		s.cursorX = s.size.cols - 1 // if the tab can't be fully added, lets move the cursor to the last column
-	}
-}
-
-// Resize changes ensures that the dimensions are rows x cols
-// returns true if the dimensions changed, otherwise returns false
-func (s *Screen) Resize(size ScreenSize) bool {
-	fmt.Printf("resizing screen : %+v\n", size)
-	if s.size.rows == size.rows && s.size.cols == size.cols {
-		fmt.Println("ignoring resize")
-		return false
-	}
-	// oldSize := s.size
-	// oldLines := s.lines
-	s.size = size
-	// s.lines = nil
-	// for i := 0; i < size.rows; i++ {
-	// 	s.lines = append(s.lines, make([]rune, size.cols))
-	// }
-	// for r := 0; r < oldSize.rows && r < size.rows; r++ {
-	// 	for c := 0; c < oldSize.cols && c < size.cols; c++ {
-	// 		s.lines[r][c] = oldLines[r][c]
-	// 	}
-	// }
-	fmt.Printf("screen resized rows: %v, cols: %v\n", s.size.rows, s.size.cols)
-	return true
-}
-
-func (s *Screen) Backspace() {
-	x, y := s.cursorX, s.cursorY
-	s.lines[y][x-1] = ' '
-	s.cursorX = x - 1
-}
-
-func (s *Screen) MoveCursor(dx, dy int) {
-	s.cursorX += dx
-	s.cursorY += dy
-
-	if s.cursorX < 0 {
-		s.cursorX = 0
-	} else if s.cursorX >= s.size.cols {
-		s.cursorX = s.size.cols - 1
-	}
-
-	if s.cursorY < 0 {
-		s.cursorY = 0
-	} else if s.cursorY >= s.size.rows {
-		s.cursorY = s.size.rows - 1
-	}
-}
-
 func handleControlSequences(screen *Screen, p []byte) {
-	fmt.Println("Handling control sequences.")
-	for i := 0; i < len(p); i++ {
-		b := p[i]
-		fmt.Printf("0x%x,", b)
-		switch {
-		case b == asciiTAB:
-			screen.Tab()
-		case b == asciiBS:
-			screen.Backspace()
-		case b == '\n':
-			// This really should be more complex. There is a tty setting `onlcr` that instructs tty to give me CR-LF for every LF sent to it
-			// and I should somehow find out if this setting is enabled and parse CR-LF based on that
-			// also, it could happen that I get the CR at the end of one buffer and LF at the start of other ¯\_(ツ)_/¯
-			fmt.Println("encountered LF character -ignoring")
-		case b == '\r' && i+1 < len(p) && p[i+1] == '\n':
-			fmt.Println("encountered CR character")
-			screen.cursorX = 0
-			screen.cursorY++
-		case b == 27 && i+1 < len(p) && p[i+1] == '[':
-			// Move the index past the '[' character
-			i += 2
-
-			// Now let's read the integer parameter if available
-			var numBuf []byte
-			for ; i < len(p) && p[i] >= '0' && p[i] <= '9'; i++ {
-				numBuf = append(numBuf, p[i])
+	for _, instr := range NewDecoder().Parse(p) {
+		switch instr.t {
+		case iexecute:
+			switch instr.r {
+			case asciiHT:
+				screen.Tab()
+			case asciiBS:
+				screen.Backspace()
+			case asciiCR:
+				screen.CR()
+			case asciiLF:
+				screen.LF()
+			default:
+				fmt.Printf("Unknown control character 0x%x", instr.r)
 			}
-
-			// If no parameter is provided, assume it's 1
-			n := 1
-			if len(numBuf) > 0 {
-				n, _ = strconv.Atoi(string(numBuf))
-			}
-
-			// Check the command character
-			if i < len(p) {
-				switch p[i] {
-				case 'A':
-					screen.MoveCursor(0, -n) // Move cursor up
-				case 'B':
-					screen.MoveCursor(0, n) // Move cursor down
-				case 'C':
-					screen.MoveCursor(n, 0) // Move cursor right
-				case 'D':
-					screen.MoveCursor(-n, 0) // Move cursor left
-				case 'J':
-					if n == 2 {
-						screen.Clear()
-					}
-					// Note: We handle only the "clear entire screen" case here.
-					// Other modes like "clear to end of screen" can be added similarly.
-				}
-			}
-			// Graphic Left (GR) ascii area
-		case b >= 0x20 && b < 0x7f:
-			screen.WriteRune(rune(b))
-		default:
-			fmt.Printf("unknown non-printable character 0x%x\n", b)
+		case iprint:
+			screen.WriteRune(instr.r)
 		}
 	}
-	fmt.Println("\nFinished handling")
 }
 
 func copyAndHandleControlSequences(screen *Screen, src io.Reader) {
@@ -300,7 +137,8 @@ func loop(w *app.Window) error {
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					l := material.Label(th, 16, screen.String())
-					l.Font.Typeface = font.Typeface("go mono, monospace")
+					// l := material.Label(th, 16, generateTestContent(windowSize.rows, windowSize.cols))
+					l.Font.Typeface = font.Typeface(monoTypeface)
 					l.Truncator = ""
 					l.State = &sel
 					return inset.Layout(gtx, l.Layout)
@@ -308,47 +146,6 @@ func loop(w *app.Window) error {
 			)
 			e.Frame(gtx.Ops)
 		}
-	}
-}
-
-func keyToBytes(name string, mod key.Modifiers) []byte {
-	if mod.Contain(key.ModCtrl) {
-		switch name {
-		case "C":
-			return []byte{asciiETX} // return ETX (end of text, ^C)
-		case "D":
-			return []byte{asciiEOT} // return EOT (end of transmission)
-		}
-	}
-	switch name {
-	// Handle ANSI escape sequence for Enter key
-	case key.NameReturn:
-		return []byte("\r")
-	case key.NameDeleteBackward:
-		return []byte{asciiBS}
-	case key.NameSpace:
-		return []byte(" ")
-	case key.NameEscape:
-		return []byte{0x1B}
-	case key.NameTab:
-		return []byte{0x09}
-	case key.NameUpArrow:
-		return []byte{0x1b, '[', 'A'}
-	case key.NameDownArrow:
-		return []byte{0x1b, '[', 'B'}
-	case key.NameRightArrow:
-		return []byte{0x1b, '[', 'C'}
-	case key.NameLeftArrow:
-		return []byte{0x1b, '[', 'D'}
-	default:
-		// For normal characters, pass them through.
-		var character string
-		if mod.Contain(key.ModShift) {
-			character = strings.ToUpper(name)
-		} else {
-			character = strings.ToLower(name)
-		}
-		return []byte(character)
 	}
 }
 
@@ -368,10 +165,14 @@ func generateTestContent(rows, cols int) string {
 	return rb.String()
 }
 
+func div(a, b fixed.Int26_6) fixed.Int26_6 {
+	return (a * (1 << 6)) / b
+}
+
 func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) ScreenSize {
 	params := text.Parameters{
 		Font: font.Font{
-			Typeface: font.Typeface("go mono, monospace"),
+			Typeface: font.Typeface(monoTypeface),
 		},
 		PxPerEm: fixed.I(gtx.Sp(16)),
 	}
@@ -381,9 +182,8 @@ func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point,
 		log.Println("ok is false for the next glyph")
 	}
 	glyphWidth := g.Advance
-	glyphHeight := g.Ascent + g.Descent
+	glyphHeight := g.Ascent + g.Descent + 1<<6 // TODO find out why the line height is higher than the glyph
 	cols := div(fixed.I(windowSize.X-20), glyphWidth).Floor()
-	rows := div(fixed.I(windowSize.Y-60), glyphHeight).Floor()
+	rows := div(fixed.I(windowSize.Y-20), glyphHeight).Floor()
 	return ScreenSize{rows: rows, cols: cols}
-
 }
