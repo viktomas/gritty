@@ -25,15 +25,15 @@ func TestParse(t *testing.T) {
 
 }
 
-func compInst(t testing.TB, expected, actual instruction) {
+func compInst(t testing.TB, expected, actual operation) {
 	if expected.t != actual.t {
-		t.Fatalf("instruction type is different, expected: %s, actual: %s", instructionTypeString[expected.t], instructionTypeString[actual.t])
+		t.Fatalf("instruction type is different, expected: %s, actual: %s", opTypeString[expected.t], opTypeString[actual.t])
 	}
 	if expected.r != actual.r {
 		t.Fatalf("instruction final character is different, expected: %c, actual: %c", expected.r, actual.r)
 	}
 	if !reflect.DeepEqual(expected.params, actual.params) {
-		t.Fatalf("instruction params are different, expected: %s, actual: %s", expected.params, actual.params)
+		t.Fatalf("instruction params are different, expected: %v, actual: %v", expected.params, actual.params)
 	}
 	if !reflect.DeepEqual(expected.intermediate, actual.intermediate) {
 		t.Fatalf("instruction intermediate chars are different, expected: %s, actual: %s", expected.intermediate, actual.intermediate)
@@ -63,8 +63,8 @@ func TestParseCSI(t *testing.T) {
 				}
 
 				i0, i1 := instructions[0], instructions[1]
-				expected0 := instruction{t: icsi, r: rune(tC.input)}
-				expected1 := instruction{t: icsi, r: rune(tC.input), params: []byte{'3', '9'}}
+				expected0 := operation{t: icsi, r: rune(tC.input)}
+				expected1 := operation{t: icsi, r: rune(tC.input), params: []int{39}}
 				compInst(t, expected0, i0)
 				compInst(t, expected1, i1)
 			})
@@ -76,7 +76,7 @@ func TestParseCSI(t *testing.T) {
 		instructions := NewDecoder().Parse([]byte{asciiESC, '[', '?', '1', '0', '4', '9', 'h'})
 		compInst(
 			t,
-			instruction{t: icsi, r: 'h', intermediate: []byte{'?'}, params: []byte("1049")},
+			operation{t: icsi, r: 'h', intermediate: "?", params: []int{1049}},
 			instructions[0],
 		)
 	})

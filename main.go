@@ -39,10 +39,11 @@ func main() {
 }
 
 func handleControlSequences(screen *Screen, p []byte) {
-	for _, instr := range NewDecoder().Parse(p) {
-		switch instr.t {
+	for _, op := range NewDecoder().Parse(p) {
+		fmt.Println("received op: ", op)
+		switch op.t {
 		case iexecute:
-			switch instr.r {
+			switch op.r {
 			case asciiHT:
 				screen.Tab()
 			case asciiBS:
@@ -52,10 +53,63 @@ func handleControlSequences(screen *Screen, p []byte) {
 			case asciiLF:
 				screen.LF()
 			default:
-				fmt.Printf("Unknown control character 0x%x", instr.r)
+				fmt.Printf("Unknown control character 0x%x", op.r)
 			}
 		case iprint:
-			screen.WriteRune(instr.r)
+			screen.WriteRune(op.r)
+		case icsi:
+			switch op.r {
+			case 'A':
+				dy := 1
+				if len(op.params) == 1 {
+					dy = op.params[0]
+				}
+				screen.MoveCursor(0, -dy)
+			case 'B':
+				dy := 1
+				if len(op.params) == 1 {
+					dy = op.params[0]
+				}
+				screen.MoveCursor(0, dy)
+			case 'C':
+				dx := 1
+				if len(op.params) == 1 {
+					dx = op.params[0]
+				}
+				screen.MoveCursor(dx, 0)
+			case 'D':
+				dx := 1
+				if len(op.params) == 1 {
+					dx = op.params[0]
+				}
+				screen.MoveCursor(-dx, 0)
+			case 'J':
+				screen.Clear()
+			case 'h':
+				if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
+					screen.SaveCursor()
+					screen.SwitchToAlternateBuffer()
+					screen.AdjustToNewSize()
+				}
+			case 'l':
+				if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
+					screen.SwitchToPrimaryBuffer()
+					screen.RestoreCursor()
+					screen.AdjustToNewSize()
+				}
+			}
+			// received op:  CSI: fc: "u", params: [1 1], inter: =
+			// received op:  CSI: fc: "h", params: [1], inter: ?
+			// received op:  CSI: fc: "h", params: [2004], inter: ?
+			// received op:  CSI: fc: "r", params: [1 31], inter:
+			// received op:  CSI: fc: "m", params: [27], inter:
+			// received op:  CSI: fc: "m", params: [24], inter:
+			// received op:  CSI: fc: "m", params: [23], inter:
+			// received op:  CSI: fc: "m", params: [0], inter:
+			// received op:  CSI: fc: "H", params: [], inter:
+			// received op:  CSI: fc: "J", params: [2], inter:
+			// received op:  CSI: fc: "l", params: [25], inter: ?
+			// received op:  CSI: fc: "H", params: [31 1], inter:
 		}
 	}
 }
@@ -79,7 +133,7 @@ func loop(w *app.Window) error {
 	var ops op.Ops
 	var sel widget.Selectable
 
-	screen := NewScreen(25, 80)
+	screen := NewScreen(80, 25)
 	// defaultShell, exists := os.LookupEnv("SHELL")
 	// if !exists {
 	// 	log.Fatal("could not find default shell from $SHELL")

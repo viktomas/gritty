@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
 )
 
 type decoder struct {
@@ -11,28 +14,28 @@ type decoder struct {
 	params       []byte
 }
 
-type instructionType uint32
+type operationType uint32
 
-type instruction struct {
-	t            instructionType
+type operation struct {
+	t            operationType
 	r            rune
-	intermediate []byte
-	params       []byte
+	intermediate string
+	params       []int
 }
 
-var instructionTypeString = map[instructionType]string{
+var opTypeString = map[operationType]string{
 	iexecute: "execute",
 	iprint:   "print",
 	iesc:     "ESC",
 	icsi:     "CSI",
 }
 
-func (i instruction) String() string {
-	return fmt.Sprintf("%s: fc: %c, params: %s, inter: %s", instructionTypeString[i.t], i.r, i.params, i.intermediate)
+func (i operation) String() string {
+	return fmt.Sprintf("%s: fc: %q, params: %v, inter: %s", opTypeString[i.t], string(i.r), i.params, i.intermediate)
 }
 
 const (
-	iexecute instructionType = iota
+	iexecute operationType = iota
 	iprint
 	iesc
 	icsi
@@ -56,16 +59,16 @@ func NewDecoder() *decoder {
 	}
 }
 
-func pExecute(b byte) instruction {
-	return instruction{t: iexecute, r: rune(b)}
+func pExecute(b byte) operation {
+	return operation{t: iexecute, r: rune(b)}
 }
 
-func pPrint(b byte) instruction {
-	return instruction{t: iprint, r: rune(b)}
+func pPrint(b byte) operation {
+	return operation{t: iprint, r: rune(b)}
 }
 
-func (d *decoder) escDispatch(b byte) instruction {
-	return instruction{t: iesc, r: rune(b), intermediate: d.intermediate, params: d.params}
+func (d *decoder) escDispatch(b byte) operation {
+	return operation{t: iesc, r: rune(b), intermediate: string(d.intermediate)}
 }
 
 func (d *decoder) clear() {
@@ -82,8 +85,20 @@ func (d *decoder) param(b byte) {
 	d.params = append(d.params, b)
 }
 
-func (d *decoder) csiDispatch(b byte) instruction {
-	return instruction{t: icsi, r: rune(b), params: d.params, intermediate: d.intermediate}
+func (d *decoder) csiDispatch(b byte) operation {
+	var params []int
+	if len(d.params) > 0 {
+		stringNumbers := strings.Split(string(d.params), ";")
+		for _, sn := range stringNumbers {
+			i, err := strconv.ParseInt(sn, 10, 32)
+			if err != nil {
+				log.Printf("tried to parse params %s but it doesn't contain only numbers and ;", d.params)
+				continue
+			}
+			params = append(params, int(i))
+		}
+	}
+	return operation{t: icsi, r: rune(b), params: params, intermediate: string(d.intermediate)}
 }
 
 // btw (between) returns true if b >= start && b <= end
@@ -106,8 +121,8 @@ func isControlChar(b byte) bool {
 	return btw(b, 0x00, 0x17) || b == 0x19 || btw(b, 0x1c, 0x1f)
 }
 
-func (d *decoder) Parse(p []byte) []instruction {
-	var result []instruction
+func (d *decoder) Parse(p []byte) []operation {
+	var result []operation
 	for i := 0; i < len(p); i++ {
 		b := p[i]
 		// Anywhere
