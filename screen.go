@@ -204,3 +204,11 @@ func (s *Screen) SwitchToPrimaryBuffer() {
 func (s *Screen) RestoreCursor() {
 	s.cursor = s.savedCursor
 }
+
+// LineOp is function that can change line content and cursor column position
+type LineOp func(line []rune, cursorCol int) int
+
+func (s *Screen) LineOp(lo LineOp) {
+	newCol := lo(s.lines[s.cursor.y], s.cursor.x)
+	s.cursor.x = newCol
+}

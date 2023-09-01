@@ -40,9 +40,9 @@ func main() {
 
 func handleControlSequences(screen *Screen, p []byte) {
 	for _, op := range NewDecoder().Parse(p) {
-		fmt.Println("received op: ", op)
 		switch op.t {
 		case iexecute:
+			fmt.Println("exec: ", op)
 			switch op.r {
 			case asciiHT:
 				screen.Tab()
@@ -56,60 +56,13 @@ func handleControlSequences(screen *Screen, p []byte) {
 				fmt.Printf("Unknown control character 0x%x", op.r)
 			}
 		case iprint:
+			fmt.Println("print: ", op)
 			screen.WriteRune(op.r)
 		case icsi:
-			switch op.r {
-			case 'A':
-				dy := 1
-				if len(op.params) == 1 {
-					dy = op.params[0]
-				}
-				screen.MoveCursor(0, -dy)
-			case 'B':
-				dy := 1
-				if len(op.params) == 1 {
-					dy = op.params[0]
-				}
-				screen.MoveCursor(0, dy)
-			case 'C':
-				dx := 1
-				if len(op.params) == 1 {
-					dx = op.params[0]
-				}
-				screen.MoveCursor(dx, 0)
-			case 'D':
-				dx := 1
-				if len(op.params) == 1 {
-					dx = op.params[0]
-				}
-				screen.MoveCursor(-dx, 0)
-			case 'J':
-				screen.Clear()
-			case 'h':
-				if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-					screen.SaveCursor()
-					screen.SwitchToAlternateBuffer()
-					screen.AdjustToNewSize()
-				}
-			case 'l':
-				if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-					screen.SwitchToPrimaryBuffer()
-					screen.RestoreCursor()
-					screen.AdjustToNewSize()
-				}
+			fn := translateCSI(op)
+			if fn != nil {
+				fn(screen)
 			}
-			// received op:  CSI: fc: "u", params: [1 1], inter: =
-			// received op:  CSI: fc: "h", params: [1], inter: ?
-			// received op:  CSI: fc: "h", params: [2004], inter: ?
-			// received op:  CSI: fc: "r", params: [1 31], inter:
-			// received op:  CSI: fc: "m", params: [27], inter:
-			// received op:  CSI: fc: "m", params: [24], inter:
-			// received op:  CSI: fc: "m", params: [23], inter:
-			// received op:  CSI: fc: "m", params: [0], inter:
-			// received op:  CSI: fc: "H", params: [], inter:
-			// received op:  CSI: fc: "J", params: [2], inter:
-			// received op:  CSI: fc: "l", params: [25], inter: ?
-			// received op:  CSI: fc: "H", params: [31 1], inter:
 		}
 	}
 }
@@ -133,7 +86,7 @@ func loop(w *app.Window) error {
 	var ops op.Ops
 	var sel widget.Selectable
 
-	screen := NewScreen(80, 25)
+	var screen *Screen
 	// defaultShell, exists := os.LookupEnv("SHELL")
 	// if !exists {
 	// 	log.Fatal("could not find default shell from $SHELL")
@@ -142,18 +95,10 @@ func loop(w *app.Window) error {
 
 	c := exec.Command(defaultShell)
 
-	// Start the command with a pty.
-	ptmx, err := pty.Start(c)
-	if err != nil {
-		return err
-	}
-	// Make sure to close the pty at the end.
-	defer func() { _ = ptmx.Close() }() // Best effort.
-	go copyAndHandleControlSequences(screen, ptmx)
-
 	var location = f32.Pt(300, 300)
-	// var arrowKeys = key.Set(strings.Join([]string{key.NameLeftArrow, key.NameUpArrow, key.NameRightArrow, key.NameDownArrow}, "|"))
 
+	var windowSize image.Point
+	var ptmx *os.File
 	for {
 		e := <-w.Events()
 		switch e := e.(type) {
@@ -161,10 +106,28 @@ func loop(w *app.Window) error {
 			return e.Err
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
-			windowSize := getScreenSize(gtx, 16, e.Size, th)
-			resized := screen.Resize(windowSize)
-			if resized {
-				pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(windowSize.rows), Cols: uint16(windowSize.cols)})
+			if e.Size != windowSize {
+				windowSize = e.Size // make sure this code doesn't run until we resized again
+				screenSize := getScreenSize(gtx, 16, e.Size, th)
+				if screen == nil {
+					screen = NewScreen(screenSize.cols, screenSize.rows)
+					var err error
+					// Start the command with a pty.
+					ptmx, err = pty.Start(c)
+					if err != nil {
+						return err
+					}
+					// Make sure to close the pty at the end.
+					defer func() {
+						_ = ptmx.Close()
+					}() // Best effort.
+					go copyAndHandleControlSequences(screen, ptmx)
+					// TODO constructor accepts only screenSize
+				} else {
+					// TODO doesn't have to return boolean
+					screen.Resize(screenSize)
+					pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(screenSize.rows), Cols: uint16(screenSize.cols)})
+				}
 			}
 			// keep the focus, since only one thing can
 			key.FocusOp{Tag: &location}.Add(&ops)
@@ -181,7 +144,7 @@ func loop(w *app.Window) error {
 					if ke.State == key.Press {
 						_, err := ptmx.Write(keyToBytes(ke.Name, ke.Modifiers))
 						if err != nil {
-							return err
+							return fmt.Errorf("writing key into PTY failed with error: %w", err)
 						}
 
 					}

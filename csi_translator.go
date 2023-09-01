@@ -1,0 +1,109 @@
+package main
+
+import "log"
+
+type screenOp func(*Screen)
+
+func translateCSI(op operation) screenOp {
+	if op.t != icsi {
+		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
+		return nil
+	}
+
+	switch op.r {
+	case 'A':
+		dy := 1
+		if len(op.params) == 1 {
+			dy = op.params[0]
+		}
+		return func(s *Screen) {
+			s.MoveCursor(0, -dy)
+		}
+	case 'B':
+		dy := 1
+		if len(op.params) == 1 {
+			dy = op.params[0]
+		}
+		return func(s *Screen) {
+			s.MoveCursor(0, dy)
+		}
+	case 'C':
+		dx := 1
+		if len(op.params) == 1 {
+			dx = op.params[0]
+		}
+		return func(s *Screen) {
+			s.MoveCursor(dx, 0)
+		}
+	case 'D':
+		dx := 1
+		if len(op.params) == 1 {
+			dx = op.params[0]
+		}
+		return func(s *Screen) {
+			s.MoveCursor(-dx, 0)
+		}
+	case 'J':
+		return func(s *Screen) {
+			s.Clear()
+		}
+	case 'K':
+		return func(s *Screen) {
+			s.LineOp(func(line []rune, cursorCol int) int {
+				var toClear []rune
+				switch {
+				case len(op.params) == 0 || op.params[0] == 0:
+					toClear = line[cursorCol:] // erase from cursor to the end of the line
+				case op.params[0] == 1:
+					toClear = line[:cursorCol+1] // erase from cursor to the start of the line
+				case op.params[0] == 2:
+					toClear = line // erase the whole line
+				}
+				for i := range toClear {
+					toClear[i] = ' '
+				}
+				return cursorCol
+			})
+		}
+	case 's':
+		return func(s *Screen) {
+			s.SaveCursor()
+		}
+	case 'u':
+		if op.intermediate == "" {
+			return func(s *Screen) {
+				s.RestoreCursor()
+			}
+		}
+	case 'h':
+		if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
+			return func(s *Screen) {
+				s.SaveCursor()
+				s.SwitchToAlternateBuffer()
+				s.AdjustToNewSize()
+			}
+		}
+	case 'l':
+		if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
+			return func(s *Screen) {
+				s.SwitchToPrimaryBuffer()
+				s.RestoreCursor()
+				s.AdjustToNewSize()
+			}
+		}
+	}
+	log.Printf("Unknown CSI instruction %v", op)
+	// received op:  CSI: fc: "u", params: [1 1], inter: =
+	// received op:  CSI: fc: "h", params: [1], inter: ?
+	// received op:  CSI: fc: "h", params: [2004], inter: ?
+	// received op:  CSI: fc: "r", params: [1 31], inter:
+	// received op:  CSI: fc: "m", params: [27], inter:
+	// received op:  CSI: fc: "m", params: [24], inter:
+	// received op:  CSI: fc: "m", params: [23], inter:
+	// received op:  CSI: fc: "m", params: [0], inter:
+	// received op:  CSI: fc: "H", params: [], inter:
+	// received op:  CSI: fc: "J", params: [2], inter:
+	// received op:  CSI: fc: "l", params: [25], inter: ?
+	// received op:  CSI: fc: "H", params: [31 1], inter:
+	return nil
+}
