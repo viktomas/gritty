@@ -94,13 +94,37 @@ func (s *Screen) String() string {
 	return buf.String()
 }
 
-func (s *Screen) Clear() {
+func (s *Screen) ClearFull() {
 	for r := range s.lines {
 		for c := range s.lines[r] {
 			s.lines[r][c] = ' '
 		}
 	}
 	s.cursor.x, s.cursor.y = 0, 0
+}
+
+func (s *Screen) CleanForward() {
+	currentLineToClean := s.lines[s.cursor.y][s.cursor.x:]
+	for i := range currentLineToClean {
+		currentLineToClean[i] = ' '
+	}
+	for r := s.cursor.y + 1; r < len(s.lines); r++ {
+		for c := range s.lines[r] {
+			s.lines[r][c] = ' '
+		}
+	}
+}
+
+func (s *Screen) CleanBackward() {
+	currentLineToClean := s.lines[s.cursor.y][:s.cursor.x+1]
+	for i := range currentLineToClean {
+		currentLineToClean[i] = ' '
+	}
+	for r := 0; r < s.cursor.y-1; r++ {
+		for c := range s.lines[r] {
+			s.lines[r][c] = ' '
+		}
+	}
 }
 
 func (s *Screen) Tab() {
@@ -178,7 +202,7 @@ func (s *Screen) SwitchToAlternateBuffer() {
 	s.lines = s.alternateLines
 	s.alternateLines = primaryLines
 	s.bufferType = bufSecondary
-	s.Clear()
+	s.ClearFull()
 }
 func (s *Screen) AdjustToNewSize() {
 	// TODO the screen size might have changed between buffer
