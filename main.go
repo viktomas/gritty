@@ -42,7 +42,7 @@ func handleControlSequences(screen *Screen, p []byte) {
 	for _, op := range NewDecoder().Parse(p) {
 		switch op.t {
 		case iexecute:
-			fmt.Println("exec: ", op)
+			// fmt.Println("exec: ", op)
 			switch op.r {
 			case asciiHT:
 				screen.Tab()
@@ -56,7 +56,7 @@ func handleControlSequences(screen *Screen, p []byte) {
 				fmt.Printf("Unknown control character 0x%x", op.r)
 			}
 		case iprint:
-			fmt.Println("print: ", op)
+			// fmt.Println("print: ", op)
 			screen.WriteRune(op.r)
 		case icsi:
 			fn := translateCSI(op)
@@ -67,7 +67,7 @@ func handleControlSequences(screen *Screen, p []byte) {
 	}
 }
 
-func copyAndHandleControlSequences(screen *Screen, src io.Reader) {
+func copyAndHandleControlSequences(w *app.Window, screen *Screen, src io.Reader) {
 	buf := make([]byte, 1024)
 	for {
 		n, err := src.Read(buf)
@@ -75,6 +75,7 @@ func copyAndHandleControlSequences(screen *Screen, src io.Reader) {
 			return
 		}
 		handleControlSequences(screen, buf[:n])
+		w.Invalidate()
 	}
 }
 
@@ -94,6 +95,7 @@ func loop(w *app.Window) error {
 	defaultShell := "/bin/sh"
 
 	c := exec.Command(defaultShell)
+	c.Env = append(c.Env, "TERM=vt100")
 
 	var location = f32.Pt(300, 300)
 
@@ -113,7 +115,7 @@ func loop(w *app.Window) error {
 					screen = NewScreen(screenSize.cols, screenSize.rows)
 					var err error
 					// Start the command with a pty.
-					ptmx, err = pty.Start(c)
+					ptmx, err = pty.StartWithSize(c, &pty.Winsize{Cols: uint16(screenSize.cols), Rows: uint16(screenSize.rows)})
 					if err != nil {
 						return err
 					}
@@ -121,7 +123,7 @@ func loop(w *app.Window) error {
 					defer func() {
 						_ = ptmx.Close()
 					}() // Best effort.
-					go copyAndHandleControlSequences(screen, ptmx)
+					go copyAndHandleControlSequences(w, screen, ptmx)
 					// TODO constructor accepts only screenSize
 				} else {
 					// TODO doesn't have to return boolean

@@ -23,6 +23,17 @@ type operation struct {
 	params       []int
 }
 
+// param returns parameter on the i index or def(ault) value if the param is missing or 0
+func (o operation) param(i int, def int) int {
+	if len(o.params) == 0 || len(o.params) < i {
+		return def
+	}
+	if o.params[i] == 0 {
+		return def
+	}
+	return o.params[i]
+}
+
 var opTypeString = map[operationType]string{
 	iexecute: "execute",
 	iprint:   "print",

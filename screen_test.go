@@ -9,10 +9,10 @@ func TestNewScreen(t *testing.T) {
 	}
 }
 
-func TestClear(t *testing.T) {
+func TestClearFull(t *testing.T) {
 	s := NewScreen(2, 2)
 	s.WriteRune('a')
-	s.Clear()
+	s.ClearFull()
 	if s.String() != "  \n  \n" {
 		t.Fatalf("the screen has not been cleared and it is:\n%q", s.String())
 	}

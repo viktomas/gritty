@@ -45,12 +45,12 @@ func translateCSI(op operation) screenOp {
 		}
 	case 'J':
 		return func(s *Screen) {
-			switch {
-			case len(op.params) == 0 || op.params[0] == 0:
+			switch op.param(0, 0) {
+			case 0:
 				s.CleanForward()
-			case op.params[0] == 1:
+			case 1:
 				s.CleanBackward()
-			case op.params[0] == 2:
+			case 2:
 				s.ClearFull()
 			default:
 				log.Println("unknown CSI [J parameter: ", op.params[0])
@@ -75,11 +75,9 @@ func translateCSI(op operation) screenOp {
 			})
 		}
 	case 'H':
-		if len(op.params) == 2 {
-			return func(s *Screen) {
-				// FIXME: check bounds, don't use private fields
-				s.cursor = cursor{y: op.params[0] - 1, x: op.params[1] - 1}
-			}
+		return func(s *Screen) {
+			// FIXME: check bounds, don't use private fields
+			s.cursor = cursor{y: op.param(0, 1) - 1, x: op.param(1, 1) - 1}
 		}
 	case 's':
 		return func(s *Screen) {
