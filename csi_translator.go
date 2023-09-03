@@ -12,34 +12,22 @@ func translateCSI(op operation) screenOp {
 
 	switch op.r {
 	case 'A':
-		dy := 1
-		if len(op.params) == 1 {
-			dy = op.params[0]
-		}
+		dy := op.param(0, 1)
 		return func(s *Screen) {
 			s.MoveCursor(0, -dy)
 		}
 	case 'B':
-		dy := 1
-		if len(op.params) == 1 {
-			dy = op.params[0]
-		}
+		dy := op.param(0, 1)
 		return func(s *Screen) {
 			s.MoveCursor(0, dy)
 		}
 	case 'C':
-		dx := 1
-		if len(op.params) == 1 {
-			dx = op.params[0]
-		}
+		dx := op.param(0, 1)
 		return func(s *Screen) {
 			s.MoveCursor(dx, 0)
 		}
 	case 'D':
-		dx := 1
-		if len(op.params) == 1 {
-			dx = op.params[0]
-		}
+		dx := op.param(0, 1)
 		return func(s *Screen) {
 			s.MoveCursor(-dx, 0)
 		}
@@ -60,12 +48,12 @@ func translateCSI(op operation) screenOp {
 		return func(s *Screen) {
 			s.LineOp(func(line []rune, cursorCol int) int {
 				var toClear []rune
-				switch {
-				case len(op.params) == 0 || op.params[0] == 0:
+				switch op.param(0, 0) {
+				case 0:
 					toClear = line[cursorCol:] // erase from cursor to the end of the line
-				case op.params[0] == 1:
+				case 1:
 					toClear = line[:cursorCol+1] // erase from cursor to the start of the line
-				case op.params[0] == 2:
+				case 2:
 					toClear = line // erase the whole line
 				}
 				for i := range toClear {
@@ -107,17 +95,16 @@ func translateCSI(op operation) screenOp {
 		}
 	}
 	log.Printf("Unknown CSI instruction %v", op)
-	// received op:  CSI: fc: "u", params: [1 1], inter: =
+
+	// DEC Private Mode Set (DECSET).
 	// received op:  CSI: fc: "h", params: [1], inter: ?
 	// received op:  CSI: fc: "h", params: [2004], inter: ?
+
 	// received op:  CSI: fc: "r", params: [1 31], inter:
 	// received op:  CSI: fc: "m", params: [27], inter:
 	// received op:  CSI: fc: "m", params: [24], inter:
 	// received op:  CSI: fc: "m", params: [23], inter:
 	// received op:  CSI: fc: "m", params: [0], inter:
-	// received op:  CSI: fc: "H", params: [], inter:
-	// received op:  CSI: fc: "J", params: [2], inter:
 	// received op:  CSI: fc: "l", params: [25], inter: ?
-	// received op:  CSI: fc: "H", params: [31 1], inter:
 	return nil
 }
