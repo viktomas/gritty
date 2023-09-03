@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"io"
 	"log"
 	"os"
@@ -17,9 +18,9 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/creack/pty"
 	"golang.org/x/image/math/fixed"
@@ -85,7 +86,7 @@ func loop(w *app.Window) error {
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 
 	var ops op.Ops
-	var sel widget.Selectable
+	// var sel widget.Selectable
 
 	var screen *Screen
 	// defaultShell, exists := os.LookupEnv("SHELL")
@@ -152,21 +153,55 @@ func loop(w *app.Window) error {
 					}
 				}
 			}
-			inset := layout.UniformInset(5)
+			// inset := layout.UniformInset(5)
 			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					l := material.Label(th, 16, screen.String())
-					// l := material.Label(th, 16, generateTestContent(windowSize.rows, windowSize.cols))
-					l.Font.Typeface = font.Typeface(monoTypeface)
-					l.Truncator = ""
-					l.State = &sel
-					return inset.Layout(gtx, l.Layout)
+					params := text.Parameters{
+						Font: font.Font{
+							Typeface: font.Typeface(monoTypeface),
+						},
+						PxPerEm: fixed.I(gtx.Sp(16)),
+					}
+					th.Shaper.LayoutString(params, "Hello")
+					l := Label{}
+					font := font.Font{
+						Typeface: font.Typeface(monoTypeface),
+					}
+					textColorMacro := op.Record(gtx.Ops)
+					paint.ColorOp{Color: color.NRGBA{A: 255, R: 255}}.Add(gtx.Ops)
+					textColor := textColorMacro.Stop()
+
+					return l.Layout(gtx, th.Shaper, font, 16, screen.String(), textColor)
 				}),
 			)
 			e.Frame(gtx.Ops)
 		}
 	}
 }
+
+// func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []text.Glyph) ([]text.Glyph, bool) {
+// 	_, visibleOrBefore := it.processGlyph(glyph, true)
+// 	if it.visible {
+// 		if len(line) == 0 {
+// 			it.lineOff = f32.Point{X: fixedToFloat(glyph.X), Y: float32(glyph.Y)}.Sub(layout.FPt(it.viewport.Min))
+// 		}
+// 		line = append(line, glyph)
+// 	}
+// 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
+// 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
+// 		path := shaper.Shape(line)
+// 		outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
+// 		it.material.Add(gtx.Ops)
+// 		paint.PaintOp{}.Add(gtx.Ops)
+// 		outline.Pop()
+// 		if call := shaper.Bitmaps(line); call != (op.CallOp{}) {
+// 			call.Add(gtx.Ops)
+// 		}
+// 		t.Pop()
+// 		line = line[:0]
+// 	}
+// 	return line, visibleOrBefore
+// }
 
 func generateTestContent(rows, cols int) string {
 	makeRow := func(char, size int) string {
