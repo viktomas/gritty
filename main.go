@@ -171,7 +171,7 @@ func loop(w *app.Window) error {
 						paintedRunes = append(paintedRunes, paintedRune{
 							r:  r,
 							fg: color.NRGBA{A: 255, G: 255},
-							bg: color.NRGBA{A: 255, R: 255},
+							bg: color.NRGBA{A: 255},
 						})
 					}
 

@@ -5,6 +5,7 @@ package main
 import (
 	"image"
 	"image/color"
+	"log"
 	"strings"
 
 	"gioui.org/f32"
@@ -41,9 +42,14 @@ type Label struct {
 }
 
 type paintedRune struct {
-	r  rune
-	fg color.NRGBA
-	bg color.NRGBA
+	r      rune
+	fg, bg color.NRGBA
+}
+
+type paintedGlyph struct {
+	g      text.Glyph
+	r      rune
+	fg, bg color.NRGBA
 }
 
 // Layout the label with the given shaper, font, size, text, and material.
@@ -88,16 +94,21 @@ func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Fon
 		maxLines: l.MaxLines,
 	}
 	semantic.LabelOp(str.String()).Add(gtx.Ops)
-	var glyphs [32]text.Glyph
-	line := glyphs[:0]
+	var paintedGlyphs [32]paintedGlyph
+	line := paintedGlyphs[:0]
 	pos := 0
 	for g, ok := lt.NextGlyph(); ok; g, ok = lt.NextGlyph() {
-		if txt[pos].r == '\n' {
-			pos++
-		}
+		// if txt[pos].r == '\n' {
+		// 	pos++
+		// }
 		var ok bool
 		if line, ok = it.paintGlyph(gtx, lt, g, line, txt[pos]); !ok {
 			break
+		}
+		if pos+1 >= len(txt) {
+			log.Printf("incrementing pos will cause problems, txt length is %v, position is %v", len(txt), pos)
+		} else {
+			pos++
 		}
 	}
 	call := m.Stop()
@@ -216,33 +227,37 @@ func fixedToFloat(i fixed.Int26_6) float32 {
 // expected to be passed back in on the following invocation.
 // This design is awkward, but prevents the line slice from escaping
 // to the heap.
-func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []text.Glyph, pr paintedRune) ([]text.Glyph, bool) {
+func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, pr paintedRune) ([]paintedGlyph, bool) {
 	_, visibleOrBefore := it.processGlyph(glyph, true)
 	if it.visible {
 		if len(line) == 0 {
 			it.lineOff = f32.Point{X: fixedToFloat(glyph.X), Y: float32(glyph.Y)}.Sub(layout.FPt(it.viewport.Min))
 		}
-		line = append(line, glyph)
+		line = append(line, paintedGlyph{g: glyph, fg: pr.fg, bg: pr.bg, r: pr.r})
 	}
 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
-		paint.ColorOp{Color: pr.bg}.Add(gtx.Ops)
-		glyphWidth := glyph.Advance
-		glyphHeight := glyph.Ascent + glyph.Descent + 1<<6 // TODO find out why the line height is higher than the glyph
-		paint.FillShape(
-			gtx.Ops,
-			pr.bg,
-			clip.Rect{
-				Max: image.Point{X: glyph.X.Floor(), Y: int(glyph.Y)},
-				Min: image.Point{X: glyphWidth.Ceil(), Y: glyphHeight.Ceil()},
-			}.Op(),
-		)
-		path := shaper.Shape(line)
+		log.Println("setting new offset", it.lineOff)
+		var glyphLine []text.Glyph
+		for _, l := range line {
+			paint.ColorOp{Color: pr.bg}.Add(gtx.Ops)
+			rect := clip.Rect{
+				Min: image.Point{X: l.g.X.Floor() - it.lineOff.Round().X, Y: 0 - glyph.Ascent.Ceil()},
+				Max: image.Point{X: l.g.X.Floor() + l.g.Advance.Ceil() - it.lineOff.Round().X, Y: 0 + glyph.Descent.Ceil()},
+			}
+			paint.FillShape(
+				gtx.Ops,
+				pr.bg,
+				rect.Op(),
+			)
+			glyphLine = append(glyphLine, l.g)
+		}
+		path := shaper.Shape(glyphLine)
 		outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
 		paint.ColorOp{Color: pr.fg}.Add(gtx.Ops)
 		paint.PaintOp{}.Add(gtx.Ops)
 		outline.Pop()
-		if call := shaper.Bitmaps(line); call != (op.CallOp{}) {
+		if call := shaper.Bitmaps(glyphLine); call != (op.CallOp{}) {
 			call.Add(gtx.Ops)
 		}
 		t.Pop()
