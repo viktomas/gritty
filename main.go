@@ -18,7 +18,6 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
@@ -167,11 +166,16 @@ func loop(w *app.Window) error {
 					font := font.Font{
 						Typeface: font.Typeface(monoTypeface),
 					}
-					textColorMacro := op.Record(gtx.Ops)
-					paint.ColorOp{Color: color.NRGBA{A: 255, R: 255}}.Add(gtx.Ops)
-					textColor := textColorMacro.Stop()
+					var paintedRunes []paintedRune
+					for _, r := range screen.String() {
+						paintedRunes = append(paintedRunes, paintedRune{
+							r:  r,
+							fg: color.NRGBA{A: 255, G: 255},
+							bg: color.NRGBA{A: 255, R: 255},
+						})
+					}
 
-					return l.Layout(gtx, th.Shaper, font, 16, screen.String(), textColor)
+					return l.Layout(gtx, th.Shaper, font, 16, paintedRunes)
 				}),
 			)
 			e.Frame(gtx.Ops)

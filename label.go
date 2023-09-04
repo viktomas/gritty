@@ -4,6 +4,8 @@ package main
 
 import (
 	"image"
+	"image/color"
+	"strings"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -38,9 +40,15 @@ type Label struct {
 	LineHeightScale float32
 }
 
+type paintedRune struct {
+	r  rune
+	fg color.NRGBA
+	bg color.NRGBA
+}
+
 // Layout the label with the given shaper, font, size, text, and material.
-func (l Label) Layout(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt string, textMaterial op.CallOp) layout.Dimensions {
-	dims, _ := l.LayoutDetailed(gtx, lt, font, size, txt, textMaterial)
+func (l Label) Layout(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []paintedRune) layout.Dimensions {
+	dims, _ := l.LayoutDetailed(gtx, lt, font, size, txt)
 	return dims
 }
 
@@ -52,10 +60,14 @@ type TextInfo struct {
 }
 
 // Layout the label with the given shaper, font, size, text, and material, returning metadata about the shaped text.
-func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt string, textMaterial op.CallOp) (layout.Dimensions, TextInfo) {
+func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []paintedRune) (layout.Dimensions, TextInfo) {
 	cs := gtx.Constraints
 	textSize := fixed.I(gtx.Sp(size))
 	lineHeight := fixed.I(gtx.Sp(l.LineHeight))
+	var str strings.Builder
+	for _, pr := range txt {
+		str.WriteRune(pr.r)
+	}
 	lt.LayoutString(text.Parameters{
 		Font:            font,
 		PxPerEm:         textSize,
@@ -68,20 +80,23 @@ func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Fon
 		Locale:          gtx.Locale,
 		LineHeight:      lineHeight,
 		LineHeightScale: l.LineHeightScale,
-	}, txt)
+	}, str.String())
 	m := op.Record(gtx.Ops)
 	viewport := image.Rectangle{Max: cs.Max}
 	it := textIterator{
 		viewport: viewport,
 		maxLines: l.MaxLines,
-		material: textMaterial,
 	}
-	semantic.LabelOp(txt).Add(gtx.Ops)
+	semantic.LabelOp(str.String()).Add(gtx.Ops)
 	var glyphs [32]text.Glyph
 	line := glyphs[:0]
+	pos := 0
 	for g, ok := lt.NextGlyph(); ok; g, ok = lt.NextGlyph() {
+		if txt[pos].r == '\n' {
+			pos++
+		}
 		var ok bool
-		if line, ok = it.paintGlyph(gtx, lt, g, line); !ok {
+		if line, ok = it.paintGlyph(gtx, lt, g, line, txt[pos]); !ok {
 			break
 		}
 	}
@@ -108,10 +123,6 @@ type textIterator struct {
 	viewport image.Rectangle
 	// maxLines is the maximum number of text lines that should be displayed.
 	maxLines int
-	// material sets the paint material for the text glyphs. If none is provided
-	// the color of the glyphs is undefined and may change unpredictably if the
-	// text contains color glyphs.
-	material op.CallOp
 	// truncated tracks the count of truncated runes in the text.
 	truncated int
 	// linesSeen tracks the quantity of line endings this iterator has seen.
@@ -205,7 +216,7 @@ func fixedToFloat(i fixed.Int26_6) float32 {
 // expected to be passed back in on the following invocation.
 // This design is awkward, but prevents the line slice from escaping
 // to the heap.
-func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []text.Glyph) ([]text.Glyph, bool) {
+func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []text.Glyph, pr paintedRune) ([]text.Glyph, bool) {
 	_, visibleOrBefore := it.processGlyph(glyph, true)
 	if it.visible {
 		if len(line) == 0 {
@@ -215,9 +226,20 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 	}
 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
+		paint.ColorOp{Color: pr.bg}.Add(gtx.Ops)
+		glyphWidth := glyph.Advance
+		glyphHeight := glyph.Ascent + glyph.Descent + 1<<6 // TODO find out why the line height is higher than the glyph
+		paint.FillShape(
+			gtx.Ops,
+			pr.bg,
+			clip.Rect{
+				Max: image.Point{X: glyph.X.Floor(), Y: int(glyph.Y)},
+				Min: image.Point{X: glyphWidth.Ceil(), Y: glyphHeight.Ceil()},
+			}.Op(),
+		)
 		path := shaper.Shape(line)
 		outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
-		it.material.Add(gtx.Ops)
+		paint.ColorOp{Color: pr.fg}.Add(gtx.Ops)
 		paint.PaintOp{}.Add(gtx.Ops)
 		outline.Pop()
 		if call := shaper.Bitmaps(line); call != (op.CallOp{}) {
