@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"gioui.org/app"
 	"gioui.org/f32"
@@ -101,78 +102,85 @@ func loop(w *app.Window) error {
 
 	var windowSize image.Point
 	var ptmx *os.File
-	for {
-		e := <-w.Events()
-		switch e := e.(type) {
-		case system.DestroyEvent:
-			return e.Err
-		case system.FrameEvent:
-			gtx := layout.NewContext(&ops, e)
-			if e.Size != windowSize {
-				windowSize = e.Size // make sure this code doesn't run until we resized again
-				screenSize := getScreenSize(gtx, 16, e.Size, th)
-				if screen == nil {
-					screen = NewScreen(screenSize.cols, screenSize.rows)
-					var err error
-					// Start the command with a pty.
-					ptmx, err = pty.StartWithSize(c, &pty.Winsize{Cols: uint16(screenSize.cols), Rows: uint16(screenSize.rows)})
-					if err != nil {
-						return err
-					}
-					// Make sure to close the pty at the end.
-					defer func() {
-						_ = ptmx.Close()
-					}() // Best effort.
-					go copyAndHandleControlSequences(w, screen, ptmx)
-					// TODO constructor accepts only screenSize
-				} else {
-					// TODO doesn't have to return boolean
-					screen.Resize(screenSize)
-					pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(screenSize.rows), Cols: uint16(screenSize.cols)})
-				}
-			}
-			// keep the focus, since only one thing can
-			key.FocusOp{Tag: &location}.Add(&ops)
-			// register tag &location as reading input
-			key.InputOp{
-				Tag: &location,
-				// Keys: arrowKeys,
-			}.Add(&ops)
+	ticker := time.NewTicker(500 * time.Millisecond)
 
-			// Capture and handle keyboard input
-			for _, ev := range gtx.Events(&location) {
-				if ke, ok := ev.(key.Event); ok {
-					fmt.Println("key pressed", ke)
-					if ke.State == key.Press {
-						_, err := ptmx.Write(keyToBytes(ke.Name, ke.Modifiers))
+	for {
+		select {
+		case <-ticker.C:
+			w.Invalidate()
+		case e := <-w.Events():
+			switch e := e.(type) {
+			case system.DestroyEvent:
+				return e.Err
+			case system.FrameEvent:
+				gtx := layout.NewContext(&ops, e)
+				if e.Size != windowSize {
+					windowSize = e.Size // make sure this code doesn't run until we resized again
+					screenSize := getScreenSize(gtx, 16, e.Size, th)
+					if screen == nil {
+						screen = NewScreen(screenSize.cols, screenSize.rows)
+						var err error
+						// Start the command with a pty.
+						ptmx, err = pty.StartWithSize(c, &pty.Winsize{Cols: uint16(screenSize.cols), Rows: uint16(screenSize.rows)})
 						if err != nil {
-							return fmt.Errorf("writing key into PTY failed with error: %w", err)
+							return err
+						}
+						// Make sure to close the pty at the end.
+						defer func() {
+							_ = ptmx.Close()
+						}() // Best effort.
+						go copyAndHandleControlSequences(w, screen, ptmx)
+						// TODO constructor accepts only screenSize
+					} else {
+						// TODO doesn't have to return boolean
+						screen.Resize(screenSize)
+						pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(screenSize.rows), Cols: uint16(screenSize.cols)})
+					}
+				}
+				// keep the focus, since only one thing can
+				key.FocusOp{Tag: &location}.Add(&ops)
+				// register tag &location as reading input
+				key.InputOp{
+					Tag: &location,
+					// Keys: arrowKeys,
+				}.Add(&ops)
+
+				// Capture and handle keyboard input
+				for _, ev := range gtx.Events(&location) {
+					if ke, ok := ev.(key.Event); ok {
+						fmt.Println("key pressed", ke)
+						if ke.State == key.Press {
+							_, err := ptmx.Write(keyToBytes(ke.Name, ke.Modifiers))
+							if err != nil {
+								return fmt.Errorf("writing key into PTY failed with error: %w", err)
+							}
+
+						}
+					}
+				}
+				// inset := layout.UniformInset(5)
+				layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						params := text.Parameters{
+							Font: font.Font{
+								Typeface: font.Typeface(monoTypeface),
+							},
+							PxPerEm: fixed.I(gtx.Sp(16)),
+						}
+						th.Shaper.LayoutString(params, "Hello")
+						l := Label{}
+						font := font.Font{
+							Typeface: font.Typeface(monoTypeface),
 						}
 
-					}
-				}
+						return l.Layout(gtx, th.Shaper, font, 16, screen.Runes())
+						// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screen.size.rows, screen.size.cols))
+					}),
+				)
+				e.Frame(gtx.Ops)
 			}
-			// inset := layout.UniformInset(5)
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					params := text.Parameters{
-						Font: font.Font{
-							Typeface: font.Typeface(monoTypeface),
-						},
-						PxPerEm: fixed.I(gtx.Sp(16)),
-					}
-					th.Shaper.LayoutString(params, "Hello")
-					l := Label{}
-					font := font.Font{
-						Typeface: font.Typeface(monoTypeface),
-					}
-
-					return l.Layout(gtx, th.Shaper, font, 16, screen.Runes())
-					// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screen.size.rows, screen.size.cols))
-				}),
-			)
-			e.Frame(gtx.Ops)
 		}
+
 	}
 }
 

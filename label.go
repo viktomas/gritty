@@ -5,7 +5,6 @@ package main
 import (
 	"image"
 	"image/color"
-	"log"
 	"strings"
 
 	"gioui.org/f32"
@@ -106,7 +105,7 @@ func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Fon
 			break
 		}
 		if pos+1 >= len(txt) {
-			log.Printf("incrementing pos will cause problems, txt length is %v, position is %v", len(txt), pos)
+			// log.Printf("incrementing pos will cause problems, txt length is %v, position is %v", len(txt), pos)
 		} else {
 			pos++
 		}
@@ -237,7 +236,7 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 	}
 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
-		log.Println("setting new offset", it.lineOff)
+		// log.Println("setting new offset", it.lineOff)
 		var glyphLine []text.Glyph
 		for _, l := range line {
 			// paint.ColorOp{Color: l.bg}.Add(gtx.Ops)

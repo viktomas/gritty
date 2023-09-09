@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"time"
 )
 
 type cursor struct {
@@ -85,8 +86,19 @@ func (s *Screen) WriteRune(r rune) {
 
 func (s *Screen) Runes() []paintedRune {
 	out := make([]paintedRune, 0, s.size.rows*s.size.cols+s.size.rows) // extra space for new lines
-	for _, r := range s.lines {
-		out = append(out, r...)
+	for ri, r := range s.lines {
+		for ci, c := range r {
+			// invert cursor every odd interval
+			if (s.cursor.x == ci) && s.cursor.y == ri && shouldInvertCursor() {
+				out = append(out, paintedRune{
+					r:  c.r,
+					fg: c.bg,
+					bg: c.fg,
+				})
+			} else {
+				out = append(out, c)
+			}
+		}
 		out = append(out, s.makeRune('\n'))
 	}
 
@@ -152,6 +164,11 @@ func (s *Screen) makeNewLines(size ScreenSize) [][]paintedRune {
 		newLines[r] = s.newLine(size.cols)
 	}
 	return newLines
+}
+
+func shouldInvertCursor() bool {
+	currentTime := time.Now()
+	return (currentTime.UnixNano()/int64(time.Millisecond)/500)%2 == 0
 }
 
 // Resize changes ensures that the dimensions are rows x cols
