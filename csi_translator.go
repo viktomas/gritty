@@ -46,8 +46,8 @@ func translateCSI(op operation) screenOp {
 		}
 	case 'K':
 		return func(s *Screen) {
-			s.LineOp(func(line []rune, cursorCol int) int {
-				var toClear []rune
+			s.LineOp(func(line []paintedRune, cursorCol int) int {
+				var toClear []paintedRune
 				switch op.param(0, 0) {
 				case 0:
 					toClear = line[cursorCol:] // erase from cursor to the end of the line
@@ -57,7 +57,7 @@ func translateCSI(op operation) screenOp {
 					toClear = line // erase the whole line
 				}
 				for i := range toClear {
-					toClear[i] = ' '
+					toClear[i] = s.makeRune(' ')
 				}
 				return cursorCol
 			})

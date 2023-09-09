@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 )
 
@@ -17,8 +18,8 @@ const (
 )
 
 type Screen struct {
-	lines          [][]rune
-	alternateLines [][]rune
+	lines          [][]paintedRune
+	alternateLines [][]paintedRune
 	bufferType     bufferType
 	size           ScreenSize
 	cursor         cursor
@@ -33,8 +34,8 @@ type ScreenSize struct {
 func NewScreen(cols, rows int) *Screen {
 	size := ScreenSize{rows: rows, cols: cols}
 	screen := &Screen{size: size}
-	screen.lines = makeNewLines(size)
-	screen.alternateLines = makeNewLines(size)
+	screen.lines = screen.makeNewLines(size)
+	screen.alternateLines = screen.makeNewLines(size)
 	return screen
 }
 
@@ -53,19 +54,27 @@ func (s *Screen) ScrollUp() {
 	for i := 1; i < len(s.lines); i++ {
 		s.lines[i-1] = s.lines[i]
 	}
-	s.lines[len(s.lines)-1] = newLine(s.size.cols)
+	s.lines[len(s.lines)-1] = s.newLine(s.size.cols)
 }
 
-func newLine(cols int) []rune {
-	line := make([]rune, cols)
+func (s *Screen) newLine(cols int) []paintedRune {
+	line := make([]paintedRune, cols)
 	for c := range line {
-		line[c] = ' '
+		line[c] = s.makeRune(' ')
 	}
 	return line
 }
 
+func (s *Screen) makeRune(r rune) paintedRune {
+	return paintedRune{
+		r:  r,
+		fg: color.NRGBA{A: 255},
+		bg: color.NRGBA{A: 0xff, R: 0xff, G: 0xff, B: 0xff},
+	}
+}
+
 func (s *Screen) WriteRune(r rune) {
-	s.lines[s.cursor.y][s.cursor.x] = r
+	s.lines[s.cursor.y][s.cursor.x] = s.makeRune(r)
 	s.cursor.x++
 	if s.cursor.x >= s.size.cols {
 		//soft wrap
@@ -74,30 +83,31 @@ func (s *Screen) WriteRune(r rune) {
 	}
 }
 
+func (s *Screen) Runes() []paintedRune {
+	out := make([]paintedRune, 0, s.size.rows*s.size.cols+s.size.rows) // extra space for new lines
+	for _, r := range s.lines {
+		out = append(out, r...)
+		out = append(out, s.makeRune('\n'))
+	}
+
+	return out
+}
+
 func (s *Screen) String() string {
-	lines := s.lines
-	if len(s.lines) > s.size.rows {
-		lines = s.lines[len(s.lines)-s.size.rows:]
-	}
-
-	var buf strings.Builder
-	for _, line := range lines {
-		runeLine := line
-		if len(runeLine) > s.size.cols {
-			buf.WriteString(string(runeLine[:s.size.cols]))
-		} else {
-			buf.WriteString(string(line))
+	var sb strings.Builder
+	for _, r := range s.lines {
+		for _, c := range r {
+			sb.WriteRune(c.r)
 		}
-		buf.WriteString("\n")
-
+		sb.WriteRune('\n')
 	}
-	return buf.String()
+	return sb.String()
 }
 
 func (s *Screen) ClearFull() {
 	for r := range s.lines {
 		for c := range s.lines[r] {
-			s.lines[r][c] = ' '
+			s.lines[r][c] = s.makeRune(' ')
 		}
 	}
 	s.cursor.x, s.cursor.y = 0, 0
@@ -106,11 +116,11 @@ func (s *Screen) ClearFull() {
 func (s *Screen) CleanForward() {
 	currentLineToClean := s.lines[s.cursor.y][s.cursor.x:]
 	for i := range currentLineToClean {
-		currentLineToClean[i] = ' '
+		currentLineToClean[i] = s.makeRune(' ')
 	}
 	for r := s.cursor.y + 1; r < len(s.lines); r++ {
 		for c := range s.lines[r] {
-			s.lines[r][c] = ' '
+			s.lines[r][c] = s.makeRune(' ')
 		}
 	}
 }
@@ -118,11 +128,11 @@ func (s *Screen) CleanForward() {
 func (s *Screen) CleanBackward() {
 	currentLineToClean := s.lines[s.cursor.y][:s.cursor.x+1]
 	for i := range currentLineToClean {
-		currentLineToClean[i] = ' '
+		currentLineToClean[i] = s.makeRune(' ')
 	}
 	for r := 0; r < s.cursor.y-1; r++ {
 		for c := range s.lines[r] {
-			s.lines[r][c] = ' '
+			s.lines[r][c] = s.makeRune(' ')
 		}
 	}
 }
@@ -136,10 +146,10 @@ func (s *Screen) Tab() {
 	}
 }
 
-func makeNewLines(size ScreenSize) [][]rune {
-	newLines := make([][]rune, size.rows)
+func (s *Screen) makeNewLines(size ScreenSize) [][]paintedRune {
+	newLines := make([][]paintedRune, size.rows)
 	for r := range newLines {
-		newLines[r] = newLine(size.cols)
+		newLines[r] = s.newLine(size.cols)
 	}
 	return newLines
 }
@@ -153,23 +163,14 @@ func (s *Screen) Resize(size ScreenSize) bool {
 		return false
 	}
 	s.size = size
-	s.lines = makeNewLines(size)
-	// s.lines = nil
-	// for i := 0; i < size.rows; i++ {
-	// 	s.lines = append(s.lines, make([]rune, size.cols))
-	// }
-	// for r := 0; r < oldSize.rows && r < size.rows; r++ {
-	// 	for c := 0; c < oldSize.cols && c < size.cols; c++ {
-	// 		s.lines[r][c] = oldLines[r][c]
-	// 	}
-	// }
+	s.lines = s.makeNewLines(size)
 	fmt.Printf("screen resized rows: %v, cols: %v\n", s.size.rows, s.size.cols)
 	return true
 }
 
 func (s *Screen) Backspace() {
 	x, y := s.cursor.x, s.cursor.y
-	s.lines[y][x-1] = ' '
+	s.lines[y][x-1] = s.makeRune(' ')
 	s.cursor.x = x - 1
 }
 
@@ -230,7 +231,7 @@ func (s *Screen) RestoreCursor() {
 }
 
 // LineOp is function that can change line content and cursor column position
-type LineOp func(line []rune, cursorCol int) int
+type LineOp func(line []paintedRune, cursorCol int) int
 
 func (s *Screen) LineOp(lo LineOp) {
 	newCol := lo(s.lines[s.cursor.y], s.cursor.x)

@@ -240,14 +240,14 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 		log.Println("setting new offset", it.lineOff)
 		var glyphLine []text.Glyph
 		for _, l := range line {
-			paint.ColorOp{Color: pr.bg}.Add(gtx.Ops)
+			// paint.ColorOp{Color: l.bg}.Add(gtx.Ops)
 			rect := clip.Rect{
 				Min: image.Point{X: l.g.X.Floor() - it.lineOff.Round().X, Y: 0 - glyph.Ascent.Ceil()},
 				Max: image.Point{X: l.g.X.Floor() + l.g.Advance.Ceil() - it.lineOff.Round().X, Y: 0 + glyph.Descent.Ceil()},
 			}
 			paint.FillShape(
 				gtx.Ops,
-				pr.bg,
+				l.bg,
 				rect.Op(),
 			)
 			glyphLine = append(glyphLine, l.g)

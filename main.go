@@ -166,16 +166,9 @@ func loop(w *app.Window) error {
 					font := font.Font{
 						Typeface: font.Typeface(monoTypeface),
 					}
-					var paintedRunes []paintedRune
-					for _, r := range screen.String() {
-						paintedRunes = append(paintedRunes, paintedRune{
-							r:  r,
-							fg: color.NRGBA{A: 255, G: 255},
-							bg: color.NRGBA{A: 255},
-						})
-					}
 
-					return l.Layout(gtx, th.Shaper, font, 16, paintedRunes)
+					return l.Layout(gtx, th.Shaper, font, 16, screen.Runes())
+					// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screen.size.rows, screen.size.cols))
 				}),
 			)
 			e.Frame(gtx.Ops)
@@ -183,44 +176,26 @@ func loop(w *app.Window) error {
 	}
 }
 
-// func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []text.Glyph) ([]text.Glyph, bool) {
-// 	_, visibleOrBefore := it.processGlyph(glyph, true)
-// 	if it.visible {
-// 		if len(line) == 0 {
-// 			it.lineOff = f32.Point{X: fixedToFloat(glyph.X), Y: float32(glyph.Y)}.Sub(layout.FPt(it.viewport.Min))
-// 		}
-// 		line = append(line, glyph)
-// 	}
-// 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
-// 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
-// 		path := shaper.Shape(line)
-// 		outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
-// 		it.material.Add(gtx.Ops)
-// 		paint.PaintOp{}.Add(gtx.Ops)
-// 		outline.Pop()
-// 		if call := shaper.Bitmaps(line); call != (op.CallOp{}) {
-// 			call.Add(gtx.Ops)
-// 		}
-// 		t.Pop()
-// 		line = line[:0]
-// 	}
-// 	return line, visibleOrBefore
-// }
-
-func generateTestContent(rows, cols int) string {
-	makeRow := func(char, size int) string {
-		ch := fmt.Sprintf("%d", char)
-		var sb strings.Builder
-		for i := 0; i < cols; i++ {
-			sb.Write([]byte{ch[len(ch)-1]})
+func generateTestContent(rows, cols int) []paintedRune {
+	var screen []paintedRune
+	for r := 0; r < rows; r++ {
+		ch := fmt.Sprintf("%d", r)
+		for c := 0; c < cols; c++ {
+			pr := paintedRune{
+				r:  rune(ch[len(ch)-1]),
+				fg: color.NRGBA{A: 255},
+				bg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
+			}
+			if c == 0 {
+				pr.bg = color.NRGBA{A: 255, R: 255}
+			}
+			if c == cols-1 {
+				pr.bg = color.NRGBA{A: 255, B: 255}
+			}
+			screen = append(screen, pr)
 		}
-		return sb.String()
 	}
-	var rb strings.Builder
-	for i := 0; i < rows; i++ {
-		rb.WriteString(makeRow(i, cols))
-	}
-	return rb.String()
+	return screen
 }
 
 func div(a, b fixed.Int26_6) fixed.Int26_6 {
@@ -241,7 +216,7 @@ func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point,
 	}
 	glyphWidth := g.Advance
 	glyphHeight := g.Ascent + g.Descent + 1<<6 // TODO find out why the line height is higher than the glyph
-	cols := div(fixed.I(windowSize.X-20), glyphWidth).Floor()
-	rows := div(fixed.I(windowSize.Y-20), glyphHeight).Floor()
+	cols := div(fixed.I(windowSize.X), glyphWidth).Floor()
+	rows := div(fixed.I(windowSize.Y), glyphHeight).Floor()
 	return ScreenSize{rows: rows, cols: cols}
 }
