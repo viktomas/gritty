@@ -187,6 +187,9 @@ func (s *Screen) Resize(size ScreenSize) bool {
 
 func (s *Screen) Backspace() {
 	x, y := s.cursor.x, s.cursor.y
+	if x == 0 {
+		return
+	}
 	s.lines[y][x-1] = s.makeRune(' ')
 	s.cursor.x = x - 1
 }

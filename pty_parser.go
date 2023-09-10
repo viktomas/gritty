@@ -36,16 +36,22 @@ func (o operation) param(i int, def int) int {
 	return o.params[i]
 }
 
-var opTypeString = map[operationType]string{
-	iexecute: "execute",
-	iprint:   "print",
-	iesc:     "ESC",
-	icsi:     "CSI",
-	iosc:     "OSC",
-}
-
-func (i operation) String() string {
-	return fmt.Sprintf("%s: fc: %q, params: %v, inter: %s", opTypeString[i.t], string(i.r), i.params, i.intermediate)
+func (o operation) String() string {
+	switch o.t {
+	case iosc:
+		return fmt.Sprintf("OSC: %q", o.osc)
+	case iprint:
+		return fmt.Sprintf("print: %q", string(o.r))
+	case iexecute:
+		return fmt.Sprintf("execute: %q", string(o.r))
+	case iesc:
+		return fmt.Sprintf("ESC: %q", string(o.r))
+	case icsi:
+		return fmt.Sprintf("CSI: %s %v %q", o.intermediate, o.params, string(o.r))
+	default:
+		log.Fatalln("Unknown operation type: ", o.t)
+		return ""
+	}
 }
 
 const (

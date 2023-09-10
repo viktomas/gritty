@@ -27,7 +27,7 @@ func TestParse(t *testing.T) {
 
 func compInst(t testing.TB, expected, actual operation) {
 	if expected.t != actual.t {
-		t.Fatalf("instruction type is different, expected: %s, actual: %s", opTypeString[expected.t], opTypeString[actual.t])
+		t.Fatalf("instruction type is different, expected: %v, actual: %v", expected.t, actual.t)
 	}
 	if expected.r != actual.r {
 		t.Fatalf("instruction final character is different, expected: %c, actual: %c", expected.r, actual.r)
