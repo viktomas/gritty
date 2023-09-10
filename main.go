@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"io"
 	"log"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -22,7 +20,6 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
-	"github.com/creack/pty"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -39,69 +36,19 @@ func main() {
 	app.Main()
 }
 
-func handleControlSequences(screen *Screen, p []byte) {
-	for _, op := range NewDecoder().Parse(p) {
-		switch op.t {
-		case iexecute:
-			fmt.Println("exec: ", op)
-			switch op.r {
-			case asciiHT:
-				screen.Tab()
-			case asciiBS:
-				screen.Backspace()
-			case asciiCR:
-				screen.CR()
-			case asciiLF:
-				screen.LF()
-			default:
-				fmt.Printf("Unknown control character 0x%x", op.r)
-			}
-		case iprint:
-			fmt.Println("print: ", op)
-			screen.WriteRune(op.r)
-		case icsi:
-			fn := translateCSI(op)
-			if fn != nil {
-				fn(screen)
-			}
-		}
-	}
-}
-
-func copyAndHandleControlSequences(w *app.Window, screen *Screen, src io.Reader) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := src.Read(buf)
-		if err != nil {
-			return
-		}
-		handleControlSequences(screen, buf[:n])
-		w.Invalidate()
-	}
-}
-
 func loop(w *app.Window) error {
 
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 
 	var ops op.Ops
-	// var sel widget.Selectable
-
-	var screen *Screen
-	// defaultShell, exists := os.LookupEnv("SHELL")
-	// if !exists {
-	// 	log.Fatal("could not find default shell from $SHELL")
-	// }
 	defaultShell := "/bin/sh"
-
-	c := exec.Command(defaultShell)
-	c.Env = append(c.Env, "TERM=xterm")
 
 	var location = f32.Pt(300, 300)
 
+	controller := &Controller{}
+
 	var windowSize image.Point
-	var ptmx *os.File
 	ticker := time.NewTicker(500 * time.Millisecond)
 
 	for {
@@ -117,24 +64,21 @@ func loop(w *app.Window) error {
 				if e.Size != windowSize {
 					windowSize = e.Size // make sure this code doesn't run until we resized again
 					screenSize := getScreenSize(gtx, 16, e.Size, th)
-					if screen == nil {
-						screen = NewScreen(screenSize.cols, screenSize.rows)
+					if !controller.Started() {
+
 						var err error
-						// Start the command with a pty.
-						ptmx, err = pty.StartWithSize(c, &pty.Winsize{Cols: uint16(screenSize.cols), Rows: uint16(screenSize.rows)})
+						invalidate, err := controller.Start(defaultShell, screenSize.cols, screenSize.rows)
 						if err != nil {
-							return err
+							log.Fatalf("can't initialize PTY controller %v", err)
 						}
-						// Make sure to close the pty at the end.
-						defer func() {
-							_ = ptmx.Close()
-						}() // Best effort.
-						go copyAndHandleControlSequences(w, screen, ptmx)
-						// TODO constructor accepts only screenSize
+						go func() {
+							for {
+								<-invalidate
+								w.Invalidate()
+							}
+						}()
 					} else {
-						// TODO doesn't have to return boolean
-						screen.Resize(screenSize)
-						pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(screenSize.rows), Cols: uint16(screenSize.cols)})
+						controller.Resize(screenSize.cols, screenSize.rows)
 					}
 				}
 				// keep the focus, since only one thing can
@@ -150,11 +94,7 @@ func loop(w *app.Window) error {
 					if ke, ok := ev.(key.Event); ok {
 						fmt.Println("key pressed", ke)
 						if ke.State == key.Press {
-							_, err := ptmx.Write(keyToBytes(ke.Name, ke.Modifiers))
-							if err != nil {
-								return fmt.Errorf("writing key into PTY failed with error: %w", err)
-							}
-
+							controller.KeyPressed(ke.Name, ke.Modifiers)
 						}
 					}
 				}
@@ -173,7 +113,7 @@ func loop(w *app.Window) error {
 							Typeface: font.Typeface(monoTypeface),
 						}
 
-						return l.Layout(gtx, th.Shaper, font, 16, screen.Runes())
+						return l.Layout(gtx, th.Shaper, font, 16, controller.Runes())
 						// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screen.size.rows, screen.size.cols))
 					}),
 				)
