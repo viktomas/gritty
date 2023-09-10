@@ -80,7 +80,6 @@ func (c *Controller) handleOp(op operation) {
 	defer c.mu.Unlock()
 	switch op.t {
 	case iexecute:
-		fmt.Println("exec: ", op)
 		switch op.r {
 		case asciiHT:
 			c.screen.Tab()
@@ -94,13 +93,14 @@ func (c *Controller) handleOp(op operation) {
 			fmt.Printf("Unknown control character 0x%x", op.r)
 		}
 	case iprint:
-		fmt.Println("print: ", op)
 		c.screen.WriteRune(op.r)
 	case icsi:
 		fn := translateCSI(op)
 		if fn != nil {
 			fn(c.screen)
 		}
+	case iosc:
+		fmt.Println("unhandled OSC instruction: ", op)
 	}
 }
 

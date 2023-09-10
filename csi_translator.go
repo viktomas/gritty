@@ -1,14 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 )
 
 type screenOp func(*Screen)
 
 func translateCSI(op operation) screenOp {
-	fmt.Println("executing CSI op: ", op)
 	if op.t != icsi {
 		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
 		return nil

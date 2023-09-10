@@ -12,6 +12,7 @@ type decoder struct {
 	privateFlag  int
 	intermediate []byte
 	params       []byte
+	osc          []byte
 }
 
 type operationType uint32
@@ -21,6 +22,7 @@ type operation struct {
 	r            rune
 	intermediate string
 	params       []int
+	osc          string
 }
 
 // param returns parameter on the i index or def(ault) value if the param is missing or 0
@@ -39,6 +41,7 @@ var opTypeString = map[operationType]string{
 	iprint:   "print",
 	iesc:     "ESC",
 	icsi:     "CSI",
+	iosc:     "OSC",
 }
 
 func (i operation) String() string {
@@ -50,6 +53,7 @@ const (
 	iprint
 	iesc
 	icsi
+	iosc
 )
 
 type decoderState int
@@ -62,6 +66,7 @@ const (
 	sCSIParam
 	sCSIIgnore
 	sCSIIntermediate
+	sOSC
 )
 
 func NewDecoder() *decoder {
@@ -112,6 +117,10 @@ func (d *decoder) csiDispatch(b byte) operation {
 	return operation{t: icsi, r: rune(b), params: params, intermediate: string(d.intermediate)}
 }
 
+func (d *decoder) oscDispatch() operation {
+	return operation{t: iosc, osc: string(d.osc)}
+}
+
 // btw (between) returns true if b >= start && b <= end
 // in other words it checks whether b is in the boundaries set by Start and End *inclusive*
 func btw(b, start, end byte) bool {
@@ -142,6 +151,21 @@ func (d *decoder) Parse(p []byte) []operation {
 			d.clear()
 			continue
 		}
+		if b == 0x18 || b == 0x1a || btw(b, 0x80, 0x8F) || btw(b, 0x91, 0x97) || b == 0x99 || b == 0x9a {
+			d.state = sGround
+			result = append(result, pExecute(b))
+			continue
+
+		}
+		if b == 0x9c {
+			d.state = sGround
+			continue
+		}
+
+		if b == 0x9D {
+			d.state = sOSC
+			d.osc = nil
+		}
 		switch d.state {
 		case sGround:
 			if isControlChar(b) {
@@ -165,6 +189,10 @@ func (d *decoder) Parse(p []byte) []operation {
 			if b == 0x5b {
 				d.clear()
 				d.state = sCSIEntry
+			}
+			if b == 0x5d {
+				d.osc = nil
+				d.state = sOSC
 			}
 			// 7f ignore
 		case sEscapeIntermediate:
@@ -240,6 +268,19 @@ func (d *decoder) Parse(p []byte) []operation {
 				d.state = sGround
 			}
 			// 20-3f,7f ignore
+		case sOSC:
+			if isControlChar(b) {
+				// ignore
+			}
+			if btw(b, 0x20, 0x7f) {
+				d.osc = append(d.osc, b)
+			}
+			// 0x07 is xterm non-ANSI variant of transition to ground
+			// taken from https://github.com/asciinema/avt/blob/main/src/vt.rs#L423C17-L423C74
+			if b == 0x07 || b == 0x9c {
+				result = append(result, d.oscDispatch())
+				d.state = sGround
+			}
 
 		}
 	}
