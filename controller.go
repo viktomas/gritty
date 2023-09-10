@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 
 	"gioui.org/io/key"
 	"github.com/creack/pty"
@@ -14,31 +16,43 @@ import (
 type Controller struct {
 	screen *Screen
 	ptmx   *os.File
+	mu     sync.RWMutex
+	render <-chan struct{}
+	in     chan []byte
+	done   chan struct{}
 }
 
 func (c *Controller) Started() bool {
 	return c.screen != nil
 }
 
-func (c *Controller) Start(shell string, cols, rows int) (<-chan struct{}, error) {
+func (c *Controller) Start(shell string, cols, rows int) error {
 	cmd := exec.Command(shell)
 	cmd.Env = append(cmd.Env, "TERM=xterm")
 	c.screen = NewScreen(cols, rows)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start PTY %w", err)
+		return fmt.Errorf("failed to start PTY %w", err)
 	}
-	invalidate := make(chan struct{})
-	// TODO when should I close this? I need to have some channel coming in
-	// defer ptmx.Close()
+	render := make(chan struct{})
+	c.render = render
 	c.ptmx = ptmx
-	go copyAndHandleControlSequences(invalidate, c.screen, c.ptmx)
-	return invalidate, nil
+	c.done = make(chan struct{})
+	ops := processPTY(c.ptmx)
+	go func() {
+		for op := range ops {
+			c.handleOp(op)
+		}
+		close(c.done)
+	}()
+	return nil
 
 }
 
 func (c *Controller) Resize(cols, rows int) {
+	c.mu.Lock()
 	c.screen.Resize(ScreenSize{cols: cols, rows: rows})
+	c.mu.Unlock()
 	pty.Setsize(c.ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 
 }
@@ -46,51 +60,72 @@ func (c *Controller) Resize(cols, rows int) {
 func (c *Controller) KeyPressed(name string, mod key.Modifiers) {
 	_, err := c.ptmx.Write(keyToBytes(name, mod))
 	if err != nil {
-		log.Printf("writing key into PTY failed with error: %v", err)
+		log.Fatalf("writing key into PTY failed with error: %v", err)
+		return
 	}
 }
 
 func (c *Controller) Runes() []paintedRune {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.screen.Runes()
 }
 
-func handleControlSequences(screen *Screen, p []byte) {
-	for _, op := range NewDecoder().Parse(p) {
-		switch op.t {
-		case iexecute:
-			fmt.Println("exec: ", op)
-			switch op.r {
-			case asciiHT:
-				screen.Tab()
-			case asciiBS:
-				screen.Backspace()
-			case asciiCR:
-				screen.CR()
-			case asciiLF:
-				screen.LF()
-			default:
-				fmt.Printf("Unknown control character 0x%x", op.r)
-			}
-		case iprint:
-			fmt.Println("print: ", op)
-			screen.WriteRune(op.r)
-		case icsi:
-			fn := translateCSI(op)
-			if fn != nil {
-				fn(screen)
-			}
+func (c *Controller) Render() <-chan struct{} {
+	return c.render
+}
+
+func (c *Controller) handleOp(op operation) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch op.t {
+	case iexecute:
+		fmt.Println("exec: ", op)
+		switch op.r {
+		case asciiHT:
+			c.screen.Tab()
+		case asciiBS:
+			c.screen.Backspace()
+		case asciiCR:
+			c.screen.CR()
+		case asciiLF:
+			c.screen.LF()
+		default:
+			fmt.Printf("Unknown control character 0x%x", op.r)
+		}
+	case iprint:
+		fmt.Println("print: ", op)
+		c.screen.WriteRune(op.r)
+	case icsi:
+		fn := translateCSI(op)
+		if fn != nil {
+			fn(c.screen)
 		}
 	}
 }
 
-func copyAndHandleControlSequences(invalidate chan<- struct{}, screen *Screen, src io.Reader) {
+func processPTY(ptmx *os.File) <-chan operation {
+	out := make(chan operation)
 	buf := make([]byte, 1024)
-	for {
-		n, err := src.Read(buf)
-		if err != nil {
-			return
+	decoder := NewDecoder()
+	go func() {
+		defer func() {
+			close(out)
+			ptmx.Close()
+		}()
+		for {
+			n, err := ptmx.Read(buf)
+			if err != nil {
+				// if the error is io.EOF, then the PTY got closed and that most likely means that the shell exited
+				if !errors.Is(io.EOF, err) {
+					log.Printf("exiting copyAndHandleControlSequences because reader error %v", err)
+				}
+				return
+			}
+			for _, op := range decoder.Parse(buf[:n]) {
+				out <- op
+			}
 		}
-		handleControlSequences(screen, buf[:n])
-		invalidate <- struct{}{}
-	}
+	}()
+	return out
 }

@@ -53,6 +53,8 @@ func loop(w *app.Window) error {
 
 	for {
 		select {
+		case <-controller.done:
+			return nil
 		case <-ticker.C:
 			w.Invalidate()
 		case e := <-w.Events():
@@ -67,13 +69,12 @@ func loop(w *app.Window) error {
 					if !controller.Started() {
 
 						var err error
-						invalidate, err := controller.Start(defaultShell, screenSize.cols, screenSize.rows)
+						err = controller.Start(defaultShell, screenSize.cols, screenSize.rows)
 						if err != nil {
 							log.Fatalf("can't initialize PTY controller %v", err)
 						}
 						go func() {
-							for {
-								<-invalidate
+							for range controller.Render() {
 								w.Invalidate()
 							}
 						}()
