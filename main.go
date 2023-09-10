@@ -43,7 +43,7 @@ func handleControlSequences(screen *Screen, p []byte) {
 	for _, op := range NewDecoder().Parse(p) {
 		switch op.t {
 		case iexecute:
-			// fmt.Println("exec: ", op)
+			fmt.Println("exec: ", op)
 			switch op.r {
 			case asciiHT:
 				screen.Tab()
@@ -57,7 +57,7 @@ func handleControlSequences(screen *Screen, p []byte) {
 				fmt.Printf("Unknown control character 0x%x", op.r)
 			}
 		case iprint:
-			// fmt.Println("print: ", op)
+			fmt.Println("print: ", op)
 			screen.WriteRune(op.r)
 		case icsi:
 			fn := translateCSI(op)
@@ -96,7 +96,7 @@ func loop(w *app.Window) error {
 	defaultShell := "/bin/sh"
 
 	c := exec.Command(defaultShell)
-	c.Env = append(c.Env, "TERM=vt100")
+	c.Env = append(c.Env, "TERM=xterm")
 
 	var location = f32.Pt(300, 300)
 

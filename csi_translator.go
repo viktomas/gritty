@@ -1,10 +1,14 @@
 package main
 
-import "log"
+import (
+	"fmt"
+	"log"
+)
 
 type screenOp func(*Screen)
 
 func translateCSI(op operation) screenOp {
+	fmt.Println("executing CSI op: ", op)
 	if op.t != icsi {
 		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
 		return nil
@@ -16,11 +20,19 @@ func translateCSI(op operation) screenOp {
 		return func(s *Screen) {
 			s.MoveCursor(0, -dy)
 		}
+		// FIXME fix bug in https://github.com/asciinema/avt/blob/main/src/vt.rs#L548C37-L548C37, where it is implemented as up, but should be down based on
+		// - http://xtermjs.org/docs/api/vtfeatures/
+		// - https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+	case 'e':
+		fallthrough
 	case 'B':
 		dy := op.param(0, 1)
 		return func(s *Screen) {
 			s.MoveCursor(0, dy)
 		}
+	case 'a': // a is also CUF
+		fallthrough
+	// CUF
 	case 'C':
 		dx := op.param(0, 1)
 		return func(s *Screen) {
@@ -96,15 +108,11 @@ func translateCSI(op operation) screenOp {
 	}
 	log.Printf("Unknown CSI instruction %v", op)
 
-	// DEC Private Mode Set (DECSET).
-	// received op:  CSI: fc: "h", params: [1], inter: ?
-	// received op:  CSI: fc: "h", params: [2004], inter: ?
-
-	// received op:  CSI: fc: "r", params: [1 31], inter:
-	// received op:  CSI: fc: "m", params: [27], inter:
-	// received op:  CSI: fc: "m", params: [24], inter:
-	// received op:  CSI: fc: "m", params: [23], inter:
-	// received op:  CSI: fc: "m", params: [0], inter:
-	// received op:  CSI: fc: "l", params: [25], inter: ?
+	// CSI: fc: "v", params: [], inter:
+	// CSI: fc: "c", params: [], inter:
+	// CSI: fc: "o", params: [], inter:
+	// CSI: fc: "n", params: [], inter:
+	// CSI: fc: "r", params: [], inter:
+	// CSI: fc: "t", params: [], inter:
 	return nil
 }
