@@ -1,10 +1,11 @@
 package main
 
 import (
+	"io"
 	"log"
 )
 
-type screenOp func(*Screen)
+type screenOp func(*Screen, io.Writer)
 
 func translateCSI(op operation) screenOp {
 	if op.t != icsi {
@@ -15,7 +16,7 @@ func translateCSI(op operation) screenOp {
 	switch op.r {
 	case 'A':
 		dy := op.param(0, 1)
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			s.MoveCursor(0, -dy)
 		}
 		// FIXME fix bug in https://github.com/asciinema/avt/blob/main/src/vt.rs#L548C37-L548C37, where it is implemented as up, but should be down based on
@@ -25,7 +26,7 @@ func translateCSI(op operation) screenOp {
 		fallthrough
 	case 'B':
 		dy := op.param(0, 1)
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			s.MoveCursor(0, dy)
 		}
 	case 'a': // a is also CUF
@@ -33,16 +34,16 @@ func translateCSI(op operation) screenOp {
 	// CUF
 	case 'C':
 		dx := op.param(0, 1)
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			s.MoveCursor(dx, 0)
 		}
 	case 'D':
 		dx := op.param(0, 1)
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			s.MoveCursor(-dx, 0)
 		}
 	case 'J':
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			switch op.param(0, 0) {
 			case 0:
 				s.CleanForward()
@@ -55,7 +56,7 @@ func translateCSI(op operation) screenOp {
 			}
 		}
 	case 'K':
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			s.LineOp(func(line []paintedRune, cursorCol int) int {
 				var toClear []paintedRune
 				switch op.param(0, 0) {
@@ -75,23 +76,23 @@ func translateCSI(op operation) screenOp {
 	case 'f': // Horizontal and Vertical Position [row;column] (default = [1,1]) (HVP).
 		fallthrough
 	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			// FIXME: check bounds, don't use private fields
 			s.cursor = cursor{y: op.param(0, 1) - 1, x: op.param(1, 1) - 1}
 		}
 	case 's':
-		return func(s *Screen) {
+		return func(s *Screen, _ io.Writer) {
 			s.SaveCursor()
 		}
 	case 'u':
 		if op.intermediate == "" {
-			return func(s *Screen) {
+			return func(s *Screen, _ io.Writer) {
 				s.RestoreCursor()
 			}
 		}
 	case 'h':
 		if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-			return func(s *Screen) {
+			return func(s *Screen, _ io.Writer) {
 				s.SaveCursor()
 				s.SwitchToAlternateBuffer()
 				s.AdjustToNewSize()
@@ -99,10 +100,27 @@ func translateCSI(op operation) screenOp {
 		}
 	case 'l':
 		if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-			return func(s *Screen) {
+			return func(s *Screen, _ io.Writer) {
 				s.SwitchToPrimaryBuffer()
 				s.RestoreCursor()
 				s.AdjustToNewSize()
+			}
+		}
+	case 'c':
+		return func(s *Screen, pty io.Writer) {
+			// inspired by https://github.com/liamg/darktile/blob/159932ff3ecdc9f7d30ac026480587b84edb895b/internal/app/darktile/termutil/csi.go#L305
+			// we are VT100
+			// for DA1 we'll respond ?1;2
+			// for DA2 we'll respond >0;0;0
+			response := "?1;2"
+			if op.intermediate == ">" {
+				response = ">0;0;0"
+			}
+
+			// write response to source pty
+			_, err := pty.Write([]byte("\x1b[" + response + "c"))
+			if err != nil {
+				log.Printf("Error when writing device information to PTY: %v", err)
 			}
 		}
 	}

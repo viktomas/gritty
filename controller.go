@@ -28,7 +28,7 @@ func (c *Controller) Started() bool {
 
 func (c *Controller) Start(shell string, cols, rows int) error {
 	cmd := exec.Command(shell)
-	cmd.Env = append(cmd.Env, "TERM=xterm")
+	cmd.Env = append(cmd.Env, "TERM=vt100")
 	c.screen = NewScreen(cols, rows)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
@@ -97,7 +97,7 @@ func (c *Controller) handleOp(op operation) {
 	case icsi:
 		fn := translateCSI(op)
 		if fn != nil {
-			fn(c.screen)
+			fn(c.screen, c.ptmx)
 		}
 	case iosc:
 		fmt.Println("unhandled OSC instruction: ", op)
