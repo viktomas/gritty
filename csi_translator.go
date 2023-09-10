@@ -74,7 +74,9 @@ func translateCSI(op operation) screenOp {
 				return cursorCol
 			})
 		}
-	case 'H':
+	case 'f': // Horizontal and Vertical Position [row;column] (default = [1,1]) (HVP).
+		fallthrough
+	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).
 		return func(s *Screen) {
 			// FIXME: check bounds, don't use private fields
 			s.cursor = cursor{y: op.param(0, 1) - 1, x: op.param(1, 1) - 1}
@@ -108,11 +110,13 @@ func translateCSI(op operation) screenOp {
 	}
 	log.Printf("Unknown CSI instruction %v", op)
 
-	// CSI: fc: "v", params: [], inter:
-	// CSI: fc: "c", params: [], inter:
+	// CSI: fc: "m", params: [], inter:
+	// CSI: fc: "o", params: [], inter:
+	// CSI: fc: "r", params: [], inter:
 	// CSI: fc: "o", params: [], inter:
 	// CSI: fc: "n", params: [], inter:
-	// CSI: fc: "r", params: [], inter:
-	// CSI: fc: "t", params: [], inter:
+	// CSI: fc: "l", params: [], inter:
+	// CSI: fc: "i", params: [], inter:
+	// CSI: fc: "n", params: [], inter:
 	return nil
 }
