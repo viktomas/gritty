@@ -47,7 +47,7 @@ func (o operation) String() string {
 	case iexecute:
 		return fmt.Sprintf("execute: %q", string(o.r))
 	case iesc:
-		return fmt.Sprintf("ESC: %q", string(o.r))
+		return fmt.Sprintf("ESC: %s %q", o.intermediate, string(o.r))
 	case icsi:
 		return fmt.Sprintf("CSI: %s %v %q", o.intermediate, o.params, string(o.r))
 	default:
