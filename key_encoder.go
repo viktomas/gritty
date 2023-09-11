@@ -8,11 +8,8 @@ import (
 
 func keyToBytes(name string, mod key.Modifiers) []byte {
 	if mod.Contain(key.ModCtrl) {
-		switch name {
-		case "C":
-			return []byte{asciiETX} // return ETX (end of text, ^C)
-		case "D":
-			return []byte{asciiEOT} // return EOT (end of transmission)
+		if len(name) == 1 && name[0] >= 0x40 && name[0] <= 0x5f {
+			return []byte{name[0] - 0x40}
 		}
 	}
 	switch name {
