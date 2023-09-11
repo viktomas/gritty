@@ -238,8 +238,12 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
 		var glyphLine []text.Glyph
 		for _, l := range line {
+			// minX is where the glyph character starts
+			// thanks to setting an offset, the rectangle and the glyph can be drawn from X: 0
+			minX := l.g.X.Floor() - it.lineOff.Round().X
+			glyphOffset := op.Affine(f32.Affine2D{}.Offset(f32.Point{X: float32(minX)})).Push(gtx.Ops)
 			rect := clip.Rect{
-				Min: image.Point{X: l.g.X.Floor() - it.lineOff.Round().X, Y: 0 - glyph.Ascent.Ceil()},
+				Min: image.Point{X: 0, Y: 0 - glyph.Ascent.Ceil()},
 				Max: image.Point{X: l.g.X.Floor() + l.g.Advance.Ceil() - it.lineOff.Round().X, Y: 0 + glyph.Descent.Ceil()},
 			}
 			paint.FillShape(
@@ -247,7 +251,6 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 				l.bg,
 				rect.Op(),
 			)
-			g := op.Affine(f32.Affine2D{}.Offset(f32.Point{X: float32(l.g.X.Floor() - it.lineOff.Round().X)})).Push(gtx.Ops)
 			path := shaper.Shape([]text.Glyph{l.g})
 			outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
 			paint.ColorOp{Color: l.fg}.Add(gtx.Ops)
@@ -256,7 +259,7 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 			if call := shaper.Bitmaps(glyphLine); call != (op.CallOp{}) {
 				call.Add(gtx.Ops)
 			}
-			g.Pop()
+			glyphOffset.Pop()
 		}
 		t.Pop()
 		line = line[:0]
