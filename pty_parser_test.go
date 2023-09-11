@@ -97,9 +97,24 @@ func TestParseCSI(t *testing.T) {
 
 		for _, test := range tests {
 			output := NewDecoder().Parse(test.input) // Assuming `parse` is your parsing function
-			if output[0].String() != test.expected.String() {
+			if !reflect.DeepEqual(test.expected, output[0]) {
 				t.Fatalf("parsed as %v, but should have been %v", output[0], test.expected)
 			}
+		}
+	})
+
+	t.Run("goes to ground from CSI entry", func(t *testing.T) {
+		output := NewDecoder().Parse([]byte{0x1b, 0x5b, 0x4b, 0x61})
+		if len(output) != 2 {
+			t.Fatalf("the input should have been parsed into 2 operations")
+		}
+		expected1 := operation{t: icsi, r: 'K'}
+		if !reflect.DeepEqual(expected1, output[0]) {
+			t.Fatalf("first operation should have been %v, but was %v", expected1, output[0])
+		}
+		expected2 := operation{t: iprint, r: 'a'}
+		if !reflect.DeepEqual(expected2, output[1]) {
+			t.Fatalf("second operation should have been %v, but was %v", expected2, output[1])
 		}
 	})
 

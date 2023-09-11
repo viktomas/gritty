@@ -75,23 +75,29 @@ func (c *Controller) Render() <-chan struct{} {
 	return c.render
 }
 
+func (c *Controller) executeOp(r rune) {
+
+	switch r {
+	case asciiHT:
+		c.screen.Tab()
+	case asciiBS:
+		c.screen.Backspace()
+	case asciiCR:
+		c.screen.CR()
+	case asciiLF:
+		c.screen.LF()
+	default:
+		fmt.Printf("Unknown control character 0x%x", r)
+	}
+}
+
 func (c *Controller) handleOp(op operation) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	logDebug("%v\n", op)
 	switch op.t {
 	case iexecute:
-		switch op.r {
-		case asciiHT:
-			c.screen.Tab()
-		case asciiBS:
-			c.screen.Backspace()
-		case asciiCR:
-			c.screen.CR()
-		case asciiLF:
-			c.screen.LF()
-		default:
-			fmt.Printf("Unknown control character 0x%x", op.r)
-		}
+		c.executeOp(op.r)
 	case iprint:
 		c.screen.WriteRune(op.r)
 	case icsi:
@@ -101,7 +107,16 @@ func (c *Controller) handleOp(op operation) {
 		}
 	case iosc:
 		fmt.Println("unhandled OSC instruction: ", op)
+	case iesc:
+		if op.r >= '@' && op.r <= '_' {
+			c.executeOp(op.r - 0x40)
+		} else {
+			fmt.Println("Unknown ESC op: ", op)
+		}
+	default:
+		fmt.Printf("unhandled op type %v\n", op)
 	}
+
 }
 
 func processPTY(ptmx *os.File) <-chan operation {

@@ -25,6 +25,12 @@ import (
 
 const monoTypeface = "go mono, monospaced"
 
+func logDebug(f string, vars ...any) {
+	if os.Getenv("gritty_debug") != "" {
+		fmt.Printf(f, vars...)
+	}
+}
+
 func main() {
 	go func() {
 		w := app.NewWindow()

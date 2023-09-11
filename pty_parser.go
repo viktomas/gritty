@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 type decoder struct {
 	state        decoderState
 	privateFlag  int
+	buf          []byte
 	intermediate []byte
 	params       []byte
 	osc          []byte
@@ -81,33 +83,27 @@ func NewDecoder() *decoder {
 	}
 }
 
-func pExecute(b byte) operation {
+func (d *decoder) pExecute(b byte) operation {
+	logDebug("Executing: %v\n", hex.EncodeToString(d.buf))
+	d.buf = nil
 	return operation{t: iexecute, r: rune(b)}
 }
 
-func pPrint(b byte) operation {
+func (d *decoder) pPrint(b byte) operation {
+	logDebug("Printing: %v\n", hex.EncodeToString(d.buf))
+	d.buf = nil
 	return operation{t: iprint, r: rune(b)}
 }
 
 func (d *decoder) escDispatch(b byte) operation {
+	logDebug("ESC: %v\n", hex.EncodeToString(d.buf))
+	d.buf = nil
 	return operation{t: iesc, r: rune(b), intermediate: string(d.intermediate)}
 }
 
-func (d *decoder) clear() {
-	d.privateFlag = 0
-	d.intermediate = nil
-	d.params = nil
-}
-
-func (d *decoder) collect(b byte) {
-	d.intermediate = append(d.intermediate, b)
-}
-
-func (d *decoder) param(b byte) {
-	d.params = append(d.params, b)
-}
-
 func (d *decoder) csiDispatch(b byte) operation {
+	logDebug("CSI: %v\n", hex.EncodeToString(d.buf))
+	d.buf = nil
 	var params []int
 	if len(d.params) > 0 {
 		stringNumbers := strings.Split(string(d.params), ";")
@@ -124,7 +120,23 @@ func (d *decoder) csiDispatch(b byte) operation {
 }
 
 func (d *decoder) oscDispatch() operation {
+	logDebug("OSC: %v\n", hex.EncodeToString(d.buf))
+	d.buf = nil
 	return operation{t: iosc, osc: string(d.osc)}
+}
+
+func (d *decoder) clear() {
+	d.privateFlag = 0
+	d.intermediate = nil
+	d.params = nil
+}
+
+func (d *decoder) collect(b byte) {
+	d.intermediate = append(d.intermediate, b)
+}
+
+func (d *decoder) param(b byte) {
+	d.params = append(d.params, b)
 }
 
 // btw (between) returns true if b >= start && b <= end
@@ -151,6 +163,7 @@ func (d *decoder) Parse(p []byte) []operation {
 	var result []operation
 	for i := 0; i < len(p); i++ {
 		b := p[i]
+		d.buf = append(d.buf, b)
 		// Anywhere
 		if b == 0x1b {
 			d.state = sEscape
@@ -159,7 +172,7 @@ func (d *decoder) Parse(p []byte) []operation {
 		}
 		if b == 0x18 || b == 0x1a || btw(b, 0x80, 0x8F) || btw(b, 0x91, 0x97) || b == 0x99 || b == 0x9a {
 			d.state = sGround
-			result = append(result, pExecute(b))
+			result = append(result, d.pExecute(b))
 			continue
 
 		}
@@ -171,14 +184,14 @@ func (d *decoder) Parse(p []byte) []operation {
 		switch d.state {
 		case sGround:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if b >= 0x20 && b <= 0x7f {
-				result = append(result, pPrint(b))
+				result = append(result, d.pPrint(b))
 			}
 		case sEscape:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if btw(b, 0x30, 0x4f) || btw(b, 0x51, 0x57) || in(b, 0x59, 0x5a, 0x5C) || btw(b, 0x60, 0x7e) {
 				result = append(result, d.escDispatch(b))
@@ -199,7 +212,7 @@ func (d *decoder) Parse(p []byte) []operation {
 			// 7f ignore
 		case sEscapeIntermediate:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if btw(b, 0x20, 0x2f) {
 				d.collect(b)
@@ -211,10 +224,11 @@ func (d *decoder) Parse(p []byte) []operation {
 			// 7f ignore
 		case sCSIEntry:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if btw(b, 0x40, 0x7e) {
 				result = append(result, d.csiDispatch(b))
+				d.state = sGround
 			}
 			if btw(b, 0x30, 0x39) || b == 0x3b {
 				d.param(b)
@@ -230,7 +244,7 @@ func (d *decoder) Parse(p []byte) []operation {
 			// 7f ignore
 		case sCSIParam:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if btw(b, 0x30, 0x39) || b == 0x3b {
 				d.param(b)
@@ -249,7 +263,7 @@ func (d *decoder) Parse(p []byte) []operation {
 			// 7f ignore
 		case sCSIIntermediate:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if btw(b, 0x20, 0x2f) {
 				d.collect(b)
@@ -264,7 +278,7 @@ func (d *decoder) Parse(p []byte) []operation {
 			// 7f ignore
 		case sCSIIgnore:
 			if isControlChar(b) {
-				result = append(result, pExecute(b))
+				result = append(result, d.pExecute(b))
 			}
 			if btw(b, 0x40, 0x7e) {
 				d.state = sGround
