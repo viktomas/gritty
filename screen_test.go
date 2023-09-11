@@ -42,3 +42,22 @@ func TestWriteRune(t *testing.T) {
 
 	})
 }
+
+func TestReverseIndex(t *testing.T) {
+	t.Run("auto wraps", func(t *testing.T) {
+		s := NewScreen(2, 3)
+		s.WriteRune('1')
+		s.CR()
+		s.LF()
+		s.WriteRune('2')
+		s.CR()
+		s.LF()
+		s.WriteRune('3')
+		s.cursor = cursor{x: 0, y: 0}
+		s.ReverseIndex()
+		if s.String() != "  \n1 \n2 \n" {
+			t.Fatalf("the screen didn't scroll:\n%q", s.String())
+		}
+
+	})
+}

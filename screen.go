@@ -250,6 +250,23 @@ func (s *Screen) RestoreCursor() {
 	s.cursor = s.savedCursor
 }
 
+func (s *Screen) ReverseIndex() {
+	if s.cursor.y == 0 {
+		s.scrollDown(1)
+	} else {
+		s.cursor.y = s.cursor.y - 1
+	}
+}
+
+func (s *Screen) scrollDown(lines int) {
+	for i := len(s.lines) - lines - 1; i >= 0; i-- {
+		s.lines[i+lines] = s.lines[i]
+	}
+	for i := 0; i < lines; i++ {
+		s.lines[i] = s.newLine(s.size.cols)
+	}
+}
+
 // LineOp is function that can change line content and cursor column position
 type LineOp func(line []paintedRune, cursorCol int) int
 

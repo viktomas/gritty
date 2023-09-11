@@ -86,6 +86,8 @@ func (c *Controller) executeOp(r rune) {
 		c.screen.CR()
 	case asciiLF:
 		c.screen.LF()
+	case 0x8d:
+		c.screen.ReverseIndex()
 	default:
 		fmt.Printf("Unknown control character 0x%x", r)
 	}
@@ -109,7 +111,7 @@ func (c *Controller) handleOp(op operation) {
 		fmt.Println("unhandled OSC instruction: ", op)
 	case iesc:
 		if op.r >= '@' && op.r <= '_' {
-			c.executeOp(op.r - 0x40)
+			c.executeOp(op.r + 0x40)
 		} else {
 			fmt.Println("Unknown ESC op: ", op)
 		}
