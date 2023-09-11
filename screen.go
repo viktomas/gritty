@@ -19,12 +19,14 @@ const (
 )
 
 type Screen struct {
-	lines          [][]paintedRune
-	alternateLines [][]paintedRune
-	bufferType     bufferType
-	size           ScreenSize
-	cursor         cursor
-	savedCursor    cursor
+	lines           [][]paintedRune
+	alternateLines  [][]paintedRune
+	bufferType      bufferType
+	size            ScreenSize
+	cursor          cursor
+	savedCursor     cursor
+	scrollAreaStart int
+	scrollAreaEnd   int
 }
 
 type ScreenSize struct {
@@ -37,6 +39,7 @@ func NewScreen(cols, rows int) *Screen {
 	screen := &Screen{size: size}
 	screen.lines = screen.makeNewLines(size)
 	screen.alternateLines = screen.makeNewLines(size)
+	screen.resetScrollArea()
 	return screen
 }
 
@@ -45,17 +48,17 @@ func (s *Screen) CR() {
 }
 func (s *Screen) LF() {
 	s.cursor.y++
-	if s.cursor.y >= s.size.rows {
-		s.ScrollUp()
+	if s.cursor.y >= s.scrollAreaEnd {
+		s.scrollUp()
 		s.cursor.y--
 	}
 }
 
-func (s *Screen) ScrollUp() {
-	for i := 1; i < len(s.lines); i++ {
+func (s *Screen) scrollUp() {
+	for i := s.scrollAreaStart + 1; i < s.scrollAreaEnd; i++ {
 		s.lines[i-1] = s.lines[i]
 	}
-	s.lines[len(s.lines)-1] = s.newLine(s.size.cols)
+	s.lines[s.scrollAreaEnd-1] = s.newLine(s.size.cols)
 }
 
 func (s *Screen) newLine(cols int) []paintedRune {
@@ -64,6 +67,18 @@ func (s *Screen) newLine(cols int) []paintedRune {
 		line[c] = s.makeRune(' ')
 	}
 	return line
+}
+
+func (s *Screen) SetScrollArea(start, end int) {
+	s.scrollAreaStart = start
+	s.scrollAreaEnd = end
+	s.cursor = cursor{x: 0, y: start}
+}
+
+func (s *Screen) resetScrollArea() {
+	s.scrollAreaStart = 0
+	s.scrollAreaEnd = len(s.lines)
+
 }
 
 func (s *Screen) makeRune(r rune) paintedRune {
@@ -122,7 +137,7 @@ func (s *Screen) ClearFull() {
 			s.lines[r][c] = s.makeRune(' ')
 		}
 	}
-	s.cursor.x, s.cursor.y = 0, 0
+	s.cursor.x, s.cursor.y = 0, s.scrollAreaStart
 }
 
 func (s *Screen) CleanForward() {
@@ -181,16 +196,17 @@ func (s *Screen) Resize(size ScreenSize) bool {
 	}
 	s.size = size
 	s.lines = s.makeNewLines(size)
+	s.resetScrollArea()
 	fmt.Printf("screen resized rows: %v, cols: %v\n", s.size.rows, s.size.cols)
 	return true
 }
 
 func (s *Screen) Backspace() {
-	x, y := s.cursor.x, s.cursor.y
+	x := s.cursor.x
 	if x == 0 {
 		return
 	}
-	s.lines[y][x-1] = s.makeRune(' ')
+	// s.lines[y][x-1] = s.makeRune(' ')
 	s.cursor.x = x - 1
 }
 
@@ -251,7 +267,7 @@ func (s *Screen) RestoreCursor() {
 }
 
 func (s *Screen) ReverseIndex() {
-	if s.cursor.y == 0 {
+	if s.cursor.y == s.scrollAreaStart {
 		s.scrollDown(1)
 	} else {
 		s.cursor.y = s.cursor.y - 1
@@ -259,10 +275,10 @@ func (s *Screen) ReverseIndex() {
 }
 
 func (s *Screen) scrollDown(lines int) {
-	for i := len(s.lines) - lines - 1; i >= 0; i-- {
+	for i := s.scrollAreaEnd - lines - 1; i >= s.scrollAreaStart; i-- {
 		s.lines[i+lines] = s.lines[i]
 	}
-	for i := 0; i < lines; i++ {
+	for i := s.scrollAreaStart; i < s.scrollAreaStart+lines; i++ {
 		s.lines[i] = s.newLine(s.size.cols)
 	}
 }

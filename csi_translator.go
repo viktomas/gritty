@@ -80,6 +80,17 @@ func translateCSI(op operation) screenOp {
 			// FIXME: check bounds, don't use private fields
 			s.cursor = cursor{y: op.param(0, 1) - 1, x: op.param(1, 1) - 1}
 		}
+	case 'r':
+		return func(s *Screen, w io.Writer) {
+			start := op.param(0, 1)
+			end := op.param(1, len(s.lines))
+			// the DECSTBM docs https://vt100.net/docs/vt510-rm/DECSTBM.html
+			// say that the index you get starts with 1 (first line)
+			// and ends with len(lines)-1 (last line)
+			// but the scroll area takes the index of the first line (starts with 0)
+			// and index (starting from zero) of the last line + 1
+			s.SetScrollArea(start-1, end)
+		}
 	case 's':
 		return func(s *Screen, _ io.Writer) {
 			s.SaveCursor()
