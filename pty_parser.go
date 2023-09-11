@@ -163,14 +163,10 @@ func (d *decoder) Parse(p []byte) []operation {
 			continue
 
 		}
-		if b == 0x9c {
-			d.state = sGround
-			continue
-		}
-
 		if b == 0x9D {
 			d.state = sOSC
 			d.osc = nil
+			continue
 		}
 		switch d.state {
 		case sGround:
@@ -287,7 +283,9 @@ func (d *decoder) Parse(p []byte) []operation {
 				result = append(result, d.oscDispatch())
 				d.state = sGround
 			}
-
+			if b == 0x9c {
+				d.state = sGround
+			}
 		}
 	}
 	return result
