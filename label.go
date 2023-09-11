@@ -236,10 +236,8 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 	}
 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
-		// log.Println("setting new offset", it.lineOff)
 		var glyphLine []text.Glyph
 		for _, l := range line {
-			// paint.ColorOp{Color: l.bg}.Add(gtx.Ops)
 			rect := clip.Rect{
 				Min: image.Point{X: l.g.X.Floor() - it.lineOff.Round().X, Y: 0 - glyph.Ascent.Ceil()},
 				Max: image.Point{X: l.g.X.Floor() + l.g.Advance.Ceil() - it.lineOff.Round().X, Y: 0 + glyph.Descent.Ceil()},
@@ -249,15 +247,16 @@ func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyp
 				l.bg,
 				rect.Op(),
 			)
-			glyphLine = append(glyphLine, l.g)
-		}
-		path := shaper.Shape(glyphLine)
-		outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
-		paint.ColorOp{Color: pr.fg}.Add(gtx.Ops)
-		paint.PaintOp{}.Add(gtx.Ops)
-		outline.Pop()
-		if call := shaper.Bitmaps(glyphLine); call != (op.CallOp{}) {
-			call.Add(gtx.Ops)
+			g := op.Affine(f32.Affine2D{}.Offset(f32.Point{X: float32(l.g.X.Floor() - it.lineOff.Round().X)})).Push(gtx.Ops)
+			path := shaper.Shape([]text.Glyph{l.g})
+			outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
+			paint.ColorOp{Color: l.fg}.Add(gtx.Ops)
+			paint.PaintOp{}.Add(gtx.Ops)
+			outline.Pop()
+			if call := shaper.Bitmaps(glyphLine); call != (op.CallOp{}) {
+				call.Add(gtx.Ops)
+			}
+			g.Pop()
 		}
 		t.Pop()
 		line = line[:0]

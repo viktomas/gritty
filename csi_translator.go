@@ -1,8 +1,10 @@
 package main
 
 import (
+	"image/color"
 	"io"
 	"log"
+	"slices"
 )
 
 type screenOp func(*Screen, io.Writer)
@@ -134,16 +136,28 @@ func translateCSI(op operation) screenOp {
 				log.Printf("Error when writing device information to PTY: %v", err)
 			}
 		}
+		// SGR https://vt100.net/docs/vt510-rm/SGR.html
+	case 'm':
+		ps := op.param(0, 0)
+		if !slices.Contains([]int{0, 1, 7, 27}, ps) {
+			log.Printf("unknown SGR instruction %v\n", op)
+		}
+		return func(s *Screen, w io.Writer) {
+			switch ps {
+			case 0:
+				s.ResetBrush()
+			case 1:
+				// poor man's bold because I can't change the font
+				s.brush = brush{fg: defaultFG, bg: color.NRGBA{A: 16}}
+			case 7:
+				s.brush = brush{fg: defaultBG, bg: defaultFG}
+			case 27:
+				s.brush = brush{fg: defaultFG, bg: defaultBG}
+
+			}
+		}
 	}
 	log.Printf("Unknown CSI instruction %v", op)
 
-	// CSI: fc: "m", params: [], inter:
-	// CSI: fc: "o", params: [], inter:
-	// CSI: fc: "r", params: [], inter:
-	// CSI: fc: "o", params: [], inter:
-	// CSI: fc: "n", params: [], inter:
-	// CSI: fc: "l", params: [], inter:
-	// CSI: fc: "i", params: [], inter:
-	// CSI: fc: "n", params: [], inter:
 	return nil
 }

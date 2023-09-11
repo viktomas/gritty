@@ -121,7 +121,8 @@ func loop(w *app.Window) error {
 						}
 
 						return l.Layout(gtx, th.Shaper, font, 16, controller.Runes())
-						// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screen.size.rows, screen.size.cols))
+						// screenSize := getScreenSize(gtx, 16, e.Size, th)
+						// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screenSize.rows, screenSize.cols))
 					}),
 				)
 				e.Frame(gtx.Ops)
@@ -142,10 +143,14 @@ func generateTestContent(rows, cols int) []paintedRune {
 				bg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
 			}
 			if c == 0 {
-				pr.bg = color.NRGBA{A: 255, R: 255}
+				pr = paintedRune{
+					r:  rune(ch[len(ch)-1]),
+					fg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
+					bg: color.NRGBA{A: 255, R: 255},
+				}
 			}
-			if c == cols-1 {
-				pr.bg = color.NRGBA{A: 255, B: 255}
+			if c == cols-2 {
+				pr = paintedRune{r: pr.r, fg: pr.bg, bg: pr.fg}
 			}
 			screen = append(screen, pr)
 		}

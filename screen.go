@@ -11,6 +11,16 @@ type cursor struct {
 	x, y int
 }
 
+var (
+	defaultFG = color.NRGBA{A: 255}
+	defaultBG = color.NRGBA{A: 0xff, R: 0xff, G: 0xff, B: 0xff}
+)
+
+type brush struct {
+	fg color.NRGBA
+	bg color.NRGBA
+}
+
 type bufferType int
 
 const (
@@ -27,6 +37,7 @@ type Screen struct {
 	savedCursor     cursor
 	scrollAreaStart int
 	scrollAreaEnd   int
+	brush
 }
 
 type ScreenSize struct {
@@ -37,6 +48,7 @@ type ScreenSize struct {
 func NewScreen(cols, rows int) *Screen {
 	size := ScreenSize{rows: rows, cols: cols}
 	screen := &Screen{size: size}
+	screen.ResetBrush()
 	screen.lines = screen.makeNewLines(size)
 	screen.alternateLines = screen.makeNewLines(size)
 	screen.resetScrollArea()
@@ -59,6 +71,10 @@ func (s *Screen) scrollUp() {
 		s.lines[i-1] = s.lines[i]
 	}
 	s.lines[s.scrollAreaEnd-1] = s.newLine(s.size.cols)
+}
+
+func (s *Screen) ResetBrush() {
+	s.brush = brush{fg: defaultFG, bg: defaultBG}
 }
 
 func (s *Screen) newLine(cols int) []paintedRune {
@@ -84,8 +100,8 @@ func (s *Screen) resetScrollArea() {
 func (s *Screen) makeRune(r rune) paintedRune {
 	return paintedRune{
 		r:  r,
-		fg: color.NRGBA{A: 255},
-		bg: color.NRGBA{A: 0xff, R: 0xff, G: 0xff, B: 0xff},
+		fg: s.brush.fg,
+		bg: s.brush.bg,
 	}
 }
 
@@ -100,7 +116,7 @@ func (s *Screen) WriteRune(r rune) {
 }
 
 func (s *Screen) Runes() []paintedRune {
-	out := make([]paintedRune, 0, s.size.rows*s.size.cols+s.size.rows) // extra space for new lines
+	out := make([]paintedRune, 0, s.size.rows*s.size.cols) // extra space for new lines
 	for ri, r := range s.lines {
 		for ci, c := range r {
 			// invert cursor every odd interval
@@ -114,6 +130,7 @@ func (s *Screen) Runes() []paintedRune {
 				out = append(out, c)
 			}
 		}
+		// FIXME: why do I need the new lines here?
 		out = append(out, s.makeRune('\n'))
 	}
 
