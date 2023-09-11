@@ -81,4 +81,26 @@ func TestParseCSI(t *testing.T) {
 		)
 	})
 
+	t.Run("parse", func(t *testing.T) {
+		tests := []struct {
+			input    []byte
+			expected operation
+		}{
+			{[]byte{asciiESC, '[', 0x41}, operation{t: icsi, r: 'A'}},                         // CUU (Cursor Up)
+			{[]byte{asciiESC, '[', 0x31, 0x6d}, operation{t: icsi, params: []int{1}, r: 'm'}}, // Bold
+			{[]byte{asciiESC, '[', 0x34, 0x6d}, operation{t: icsi, params: []int{4}, r: 'm'}}, // Underline
+			{[]byte{asciiESC, '[', 0x48}, operation{t: icsi, r: 'H'}},                         // Cursor Home
+			{[]byte{asciiESC, '[', 0x4a}, operation{t: icsi, r: 'J'}},                         // Erase display
+			{[]byte{asciiESC, '[', 0x4b}, operation{t: icsi, r: 'K'}},                         // Erase line
+			// Add more test cases here
+		}
+
+		for _, test := range tests {
+			output := NewDecoder().Parse(test.input) // Assuming `parse` is your parsing function
+			if output[0].String() != test.expected.String() {
+				t.Fatalf("parsed as %v, but should have been %v", output[0], test.expected)
+			}
+		}
+	})
+
 }
