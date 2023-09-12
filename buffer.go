@@ -228,20 +228,8 @@ func (b *Buffer) Backspace() {
 }
 
 func (b *Buffer) MoveCursorRelative(dx, dy int) {
-	b.cursor.x += dx
-	b.cursor.y += dy
-
-	if b.cursor.x < 0 {
-		b.cursor.x = 0
-	} else if b.cursor.x >= b.size.cols {
-		b.cursor.x = b.size.cols - 1
-	}
-
-	if b.cursor.y < 0 {
-		b.cursor.y = 0
-	} else if b.cursor.y >= b.size.rows {
-		b.cursor.y = b.size.rows - 1
-	}
+	b.cursor.x = minmax(b.cursor.x+dx, 0, b.size.cols-1)
+	b.cursor.y = minmax(b.cursor.y+dy, 0, b.size.rows-1)
 }
 
 func (b *Buffer) SaveCursor() {
@@ -296,4 +284,16 @@ type LineOp func(line []paintedRune, cursorCol int) int
 func (b *Buffer) LineOp(lo LineOp) {
 	newCol := lo(b.lines[b.cursor.y], b.cursor.x)
 	b.cursor.x = newCol
+}
+
+// minmax returns n if it fits into the range set by min and max, otherwise it
+// returns min or max depending on the n being smaller or larger respectively
+func minmax(n, min, max int) int {
+	if n < min {
+		return min
+	}
+	if n > max {
+		return max
+	}
+	return n
 }
