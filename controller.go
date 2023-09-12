@@ -14,7 +14,7 @@ import (
 )
 
 type Controller struct {
-	screen *Screen
+	buffer *Buffer
 	ptmx   *os.File
 	mu     sync.RWMutex
 	render <-chan struct{}
@@ -23,13 +23,13 @@ type Controller struct {
 }
 
 func (c *Controller) Started() bool {
-	return c.screen != nil
+	return c.buffer != nil
 }
 
 func (c *Controller) Start(shell string, cols, rows int) error {
 	cmd := exec.Command(shell)
 	cmd.Env = append(cmd.Env, "TERM=vt100")
-	c.screen = NewScreen(cols, rows)
+	c.buffer = NewBuffer(cols, rows)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
 		return fmt.Errorf("failed to start PTY %w", err)
@@ -51,7 +51,7 @@ func (c *Controller) Start(shell string, cols, rows int) error {
 
 func (c *Controller) Resize(cols, rows int) {
 	c.mu.Lock()
-	c.screen.Resize(ScreenSize{cols: cols, rows: rows})
+	c.buffer.Resize(BufferSize{cols: cols, rows: rows})
 	c.mu.Unlock()
 	pty.Setsize(c.ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 
@@ -68,7 +68,7 @@ func (c *Controller) KeyPressed(name string, mod key.Modifiers) {
 func (c *Controller) Runes() []paintedRune {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.screen.Runes()
+	return c.buffer.Runes()
 }
 
 func (c *Controller) Render() <-chan struct{} {
@@ -79,15 +79,15 @@ func (c *Controller) executeOp(r rune) {
 
 	switch r {
 	case asciiHT:
-		c.screen.Tab()
+		c.buffer.Tab()
 	case asciiBS:
-		c.screen.Backspace()
+		c.buffer.Backspace()
 	case asciiCR:
-		c.screen.CR()
+		c.buffer.CR()
 	case asciiLF:
-		c.screen.LF()
+		c.buffer.LF()
 	case 0x8d:
-		c.screen.ReverseIndex()
+		c.buffer.ReverseIndex()
 	default:
 		fmt.Printf("Unknown control character 0x%x", r)
 	}
@@ -101,11 +101,11 @@ func (c *Controller) handleOp(op operation) {
 	case iexecute:
 		c.executeOp(op.r)
 	case iprint:
-		c.screen.WriteRune(op.r)
+		c.buffer.WriteRune(op.r)
 	case icsi:
 		fn := translateCSI(op)
 		if fn != nil {
-			fn(c.screen, c.ptmx)
+			fn(c.buffer, c.ptmx)
 		}
 	case iosc:
 		fmt.Println("unhandled OSC instruction: ", op)

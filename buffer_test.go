@@ -2,36 +2,36 @@ package main
 
 import "testing"
 
-func TestNewScreen(t *testing.T) {
-	s := NewScreen(5, 2)
+func TestNewBuffer(t *testing.T) {
+	s := NewBuffer(5, 2)
 	if s.String() != "     \n     \n" {
-		t.Fatalf("the screen string is not equal to empty screen 5x2:\n%q", s.String())
+		t.Fatalf("the buffer string is not equal to empty buffer 5x2:\n%q", s.String())
 	}
 }
 
 func TestClearFull(t *testing.T) {
-	s := NewScreen(2, 2)
+	s := NewBuffer(2, 2)
 	s.WriteRune('a')
 	s.ClearFull()
 	if s.String() != "  \n  \n" {
-		t.Fatalf("the screen has not been cleared and it is:\n%q", s.String())
+		t.Fatalf("the buffer has not been cleared and it is:\n%q", s.String())
 	}
 }
 
 func TestScrollUp(t *testing.T) {
 	t.Run("without margins", func(t *testing.T) {
-		s := NewScreen(2, 2)
+		s := NewBuffer(2, 2)
 		s.WriteRune('a')
 		s.CR()
 		s.LF()
 		s.WriteRune('b')
 		s.scrollUp()
 		if s.String() != "b \n  \n" {
-			t.Fatalf("the a character was supposed to scroll of the screen:\n%q", s.String())
+			t.Fatalf("the a character was supposed to scroll of the buffer:\n%q", s.String())
 		}
 	})
 	t.Run("with margins", func(t *testing.T) {
-		s := NewScreen(1, 5)
+		s := NewBuffer(1, 5)
 		s.WriteRune('a')
 		s.WriteRune('b')
 		s.WriteRune('c')
@@ -45,7 +45,7 @@ func TestScrollUp(t *testing.T) {
 }
 
 func TestSetScrollArea(t *testing.T) {
-	s := NewScreen(2, 5)
+	s := NewBuffer(2, 5)
 	s.WriteRune('a')
 	s.SetScrollArea(1, 3)
 
@@ -56,7 +56,7 @@ func TestSetScrollArea(t *testing.T) {
 
 func TestWriteRune(t *testing.T) {
 	t.Run("auto wraps", func(t *testing.T) {
-		s := NewScreen(2, 2)
+		s := NewBuffer(2, 2)
 		s.WriteRune('a')
 		s.WriteRune('a')
 		s.WriteRune('a')
@@ -69,7 +69,7 @@ func TestWriteRune(t *testing.T) {
 
 func TestReverseIndex(t *testing.T) {
 	t.Run("auto wraps", func(t *testing.T) {
-		s := NewScreen(2, 3)
+		s := NewBuffer(2, 3)
 		s.WriteRune('1')
 		s.WriteRune('1')
 		s.WriteRune('2')
@@ -78,12 +78,12 @@ func TestReverseIndex(t *testing.T) {
 		s.cursor = cursor{x: 0, y: 0}
 		s.ReverseIndex()
 		if s.String() != "  \n11\n22\n" {
-			t.Fatalf("the screen didn't scroll:\n%q", s.String())
+			t.Fatalf("the buffer didn't scroll:\n%q", s.String())
 		}
 	})
 
 	t.Run("works with scroll region", func(t *testing.T) {
-		s := NewScreen(1, 5)
+		s := NewBuffer(1, 5)
 		s.WriteRune('0')
 		s.WriteRune('1')
 		s.WriteRune('2')
@@ -91,7 +91,7 @@ func TestReverseIndex(t *testing.T) {
 		s.SetScrollArea(1, 3)
 		s.ReverseIndex()
 		if s.String() != "0\n \n1\n3\n \n" {
-			t.Fatalf("the screen didn't scroll:\n%q", s.String())
+			t.Fatalf("the buffer didn't scroll:\n%q", s.String())
 		}
 
 	})

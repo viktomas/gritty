@@ -158,11 +158,12 @@ func generateTestContent(rows, cols int) []paintedRune {
 	return screen
 }
 
+// div divides two int26_6 numberes
 func div(a, b fixed.Int26_6) fixed.Int26_6 {
 	return (a * (1 << 6)) / b
 }
 
-func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) ScreenSize {
+func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) BufferSize {
 	params := text.Parameters{
 		Font: font.Font{
 			Typeface: font.Typeface(monoTypeface),
@@ -178,5 +179,5 @@ func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point,
 	glyphHeight := g.Ascent + g.Descent + 1<<6 // TODO find out why the line height is higher than the glyph
 	cols := div(fixed.I(windowSize.X), glyphWidth).Floor()
 	rows := div(fixed.I(windowSize.Y), glyphHeight).Floor()
-	return ScreenSize{rows: rows, cols: cols}
+	return BufferSize{rows: rows, cols: cols}
 }
