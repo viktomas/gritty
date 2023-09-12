@@ -149,37 +149,43 @@ func (b *Buffer) String() string {
 	return sb.String()
 }
 
-func (b *Buffer) ClearFull() {
-	for r := range b.lines {
-		for c := range b.lines[r] {
-			b.lines[r][c] = b.MakeRune(' ')
+func (b *Buffer) ClearLines(start, end int) {
+	// sanitize parameters
+	s := clamp(start, 0, b.size.rows)
+	e := clamp(end, 0, b.size.rows)
+
+	toClean := b.lines[s:e]
+	for r := range toClean {
+		for c := range toClean[r] {
+			toClean[r][c] = b.MakeRune(' ')
 		}
 	}
+}
+
+func (b *Buffer) ClearCurrentLine(start, end int) {
+	// sanitize parameters
+	s := clamp(start, 0, b.size.cols)
+	e := clamp(end, 0, b.size.cols)
+
+	currentLineToClean := b.lines[b.cursor.y][s:e]
+	for i := range currentLineToClean {
+		currentLineToClean[i] = b.MakeRune(' ')
+	}
+}
+
+func (b *Buffer) ClearFull() {
+	b.ClearLines(0, b.size.rows)
 	b.cursor.x, b.cursor.y = 0, b.scrollAreaStart
 }
 
 func (b *Buffer) CleanForward() {
-	currentLineToClean := b.lines[b.cursor.y][b.cursor.x:]
-	for i := range currentLineToClean {
-		currentLineToClean[i] = b.MakeRune(' ')
-	}
-	for r := b.cursor.y + 1; r < len(b.lines); r++ {
-		for c := range b.lines[r] {
-			b.lines[r][c] = b.MakeRune(' ')
-		}
-	}
+	b.ClearCurrentLine(b.cursor.x, b.size.cols)
+	b.ClearLines(b.cursor.y+1, b.size.rows)
 }
 
 func (b *Buffer) CleanBackward() {
-	currentLineToClean := b.lines[b.cursor.y][:b.cursor.x+1]
-	for i := range currentLineToClean {
-		currentLineToClean[i] = b.MakeRune(' ')
-	}
-	for r := 0; r < b.cursor.y-1; r++ {
-		for c := range b.lines[r] {
-			b.lines[r][c] = b.MakeRune(' ')
-		}
-	}
+	b.ClearCurrentLine(0, b.cursor.x+1)
+	b.ClearLines(0, b.cursor.y-1)
 }
 
 func (b *Buffer) Tab() {
@@ -276,14 +282,6 @@ func (b *Buffer) scrollDown(lines int) {
 	for i := b.scrollAreaStart; i < b.scrollAreaStart+lines; i++ {
 		b.lines[i] = b.newLine(b.size.cols)
 	}
-}
-
-// LineOp is function that can change line content and cursor column position
-type LineOp func(line []paintedRune, cursorCol int) int
-
-func (b *Buffer) LineOp(lo LineOp) {
-	newCol := lo(b.lines[b.cursor.y], b.cursor.x)
-	b.cursor.x = newCol
 }
 
 // clamp returns n if  fits into the range set by min and max, otherwise it

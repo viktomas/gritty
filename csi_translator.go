@@ -95,28 +95,26 @@ func translateCSI(op operation) bufferOP {
 		}
 	case 'K':
 		return func(s *Buffer, _ io.Writer) {
-			s.LineOp(func(line []paintedRune, cursorCol int) int {
-				var toClear []paintedRune
-				switch op.param(0, 0) {
-				case 0:
-					toClear = line[cursorCol:] // erase from cursor to the end of the line
-				case 1:
-					toClear = line[:cursorCol+1] // erase from cursor to the start of the line
-				case 2:
-					toClear = line // erase the whole line
-				}
-				for i := range toClear {
-					toClear[i] = s.MakeRune(' ')
-				}
-				return cursorCol
-			})
+			switch op.param(0, 0) {
+			case 0:
+				s.ClearCurrentLine(s.cursor.x, s.size.cols)
+			case 1:
+				s.ClearCurrentLine(0, s.cursor.x+1)
+			case 2:
+				s.ClearCurrentLine(0, s.size.cols)
+			default:
+				log.Println("unknown CSI K parameter: ", op.params[0])
+			}
 		}
 	case 'f': // Horizontal and Vertical Position [row;column] (default = [1,1]) (HVP).
 		fallthrough
 	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).
-		return func(s *Buffer, _ io.Writer) {
-			// FIXME: check bounds, don't use private fields
-			s.cursor = cursor{y: op.param(0, 1) - 1, x: op.param(1, 1) - 1}
+		return func(b *Buffer, _ io.Writer) {
+			// FIXME: move the validation of the bounds to the buffer
+			b.cursor = cursor{
+				y: clamp(op.param(0, 1)-1, 0, b.size.rows-1),
+				x: clamp(op.param(1, 1)-1, 0, b.size.cols-1),
+			}
 		}
 	case 'r':
 		return func(s *Buffer, w io.Writer) {
