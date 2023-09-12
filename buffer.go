@@ -206,13 +206,13 @@ func shouldInvertCursor() bool {
 // Resize changes ensures that the dimensions are rows x cols
 // returns true if the dimensions changed, otherwise returns false
 func (b *Buffer) Resize(size BufferSize) bool {
-	// TODO maybe I should use the size of the lines slice for this comparison
-	if b.size.rows == size.rows && b.size.cols == size.cols {
+	if b.size == size {
 		fmt.Println("ignoring resize")
 		return false
 	}
 	b.size = size
 	b.lines = b.makeNewLines(size)
+	b.alternateLines = b.makeNewLines(size)
 	b.resetScrollArea()
 	fmt.Printf("buffer resized rows: %v, cols: %v\n", b.size.rows, b.size.cols)
 	return true
@@ -227,7 +227,7 @@ func (b *Buffer) Backspace() {
 	b.cursor.x = x - 1
 }
 
-func (b *Buffer) MoveCursor(dx, dy int) {
+func (b *Buffer) MoveCursorRelative(dx, dy int) {
 	b.cursor.x += dx
 	b.cursor.y += dy
 
@@ -257,14 +257,6 @@ func (b *Buffer) SwitchToAlternateBuffer() {
 	b.alternateLines = primaryLines
 	b.bufferType = bufSecondary
 	b.ClearFull()
-}
-func (b *Buffer) AdjustToNewSize() {
-	oldSize := b.size
-	b.size = BufferSize{
-		rows: len(b.lines),
-		cols: len(b.lines[0]),
-	}
-	b.Resize(oldSize)
 }
 
 func (b *Buffer) SwitchToPrimaryBuffer() {
