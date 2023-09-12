@@ -25,7 +25,7 @@ type bufferType int
 
 const (
 	bufPrimary = iota
-	bufSecondary
+	bufAlternate
 )
 
 type Buffer struct {
@@ -37,6 +37,7 @@ type Buffer struct {
 	savedCursor     cursor
 	scrollAreaStart int
 	scrollAreaEnd   int
+	nextWriteWraps  bool
 	brush
 }
 
@@ -80,7 +81,7 @@ func (b *Buffer) ResetBrush() {
 func (b *Buffer) newLine(cols int) []paintedRune {
 	line := make([]paintedRune, cols)
 	for c := range line {
-		line[c] = b.makeRune(' ')
+		line[c] = b.MakeRune(' ')
 	}
 	return line
 }
@@ -97,7 +98,7 @@ func (b *Buffer) resetScrollArea() {
 
 }
 
-func (b *Buffer) makeRune(r rune) paintedRune {
+func (b *Buffer) MakeRune(r rune) paintedRune {
 	return paintedRune{
 		r:  r,
 		fg: b.brush.fg,
@@ -106,7 +107,7 @@ func (b *Buffer) makeRune(r rune) paintedRune {
 }
 
 func (b *Buffer) WriteRune(r rune) {
-	b.lines[b.cursor.y][b.cursor.x] = b.makeRune(r)
+	b.lines[b.cursor.y][b.cursor.x] = b.MakeRune(r)
 	b.cursor.x++
 	if b.cursor.x >= b.size.cols {
 		//soft wrap
@@ -131,7 +132,7 @@ func (b *Buffer) Runes() []paintedRune {
 			}
 		}
 		// FIXME: why do I need the new lines here?
-		out = append(out, b.makeRune('\n'))
+		out = append(out, b.MakeRune('\n'))
 	}
 
 	return out
@@ -151,7 +152,7 @@ func (b *Buffer) String() string {
 func (b *Buffer) ClearFull() {
 	for r := range b.lines {
 		for c := range b.lines[r] {
-			b.lines[r][c] = b.makeRune(' ')
+			b.lines[r][c] = b.MakeRune(' ')
 		}
 	}
 	b.cursor.x, b.cursor.y = 0, b.scrollAreaStart
@@ -160,11 +161,11 @@ func (b *Buffer) ClearFull() {
 func (b *Buffer) CleanForward() {
 	currentLineToClean := b.lines[b.cursor.y][b.cursor.x:]
 	for i := range currentLineToClean {
-		currentLineToClean[i] = b.makeRune(' ')
+		currentLineToClean[i] = b.MakeRune(' ')
 	}
 	for r := b.cursor.y + 1; r < len(b.lines); r++ {
 		for c := range b.lines[r] {
-			b.lines[r][c] = b.makeRune(' ')
+			b.lines[r][c] = b.MakeRune(' ')
 		}
 	}
 }
@@ -172,11 +173,11 @@ func (b *Buffer) CleanForward() {
 func (b *Buffer) CleanBackward() {
 	currentLineToClean := b.lines[b.cursor.y][:b.cursor.x+1]
 	for i := range currentLineToClean {
-		currentLineToClean[i] = b.makeRune(' ')
+		currentLineToClean[i] = b.MakeRune(' ')
 	}
 	for r := 0; r < b.cursor.y-1; r++ {
 		for c := range b.lines[r] {
-			b.lines[r][c] = b.makeRune(' ')
+			b.lines[r][c] = b.MakeRune(' ')
 		}
 	}
 }
@@ -223,13 +224,12 @@ func (b *Buffer) Backspace() {
 	if x == 0 {
 		return
 	}
-	// s.lines[y][x-1] = s.makeRune(' ')
 	b.cursor.x = x - 1
 }
 
 func (b *Buffer) MoveCursorRelative(dx, dy int) {
-	b.cursor.x = minmax(b.cursor.x+dx, 0, b.size.cols-1)
-	b.cursor.y = minmax(b.cursor.y+dy, 0, b.size.rows-1)
+	b.cursor.x = clamp(b.cursor.x+dx, 0, b.size.cols-1)
+	b.cursor.y = clamp(b.cursor.y+dy, 0, b.size.rows-1)
 }
 
 func (b *Buffer) SaveCursor() {
@@ -237,13 +237,13 @@ func (b *Buffer) SaveCursor() {
 }
 
 func (b *Buffer) SwitchToAlternateBuffer() {
-	if b.bufferType == bufSecondary {
+	if b.bufferType == bufAlternate {
 		return
 	}
 	primaryLines := b.lines
 	b.lines = b.alternateLines
 	b.alternateLines = primaryLines
-	b.bufferType = bufSecondary
+	b.bufferType = bufAlternate
 	b.ClearFull()
 }
 
@@ -286,14 +286,14 @@ func (b *Buffer) LineOp(lo LineOp) {
 	b.cursor.x = newCol
 }
 
-// minmax returns n if it fits into the range set by min and max, otherwise it
+// clamp returns n if  fits into the range set by min and max, otherwise it
 // returns min or max depending on the n being smaller or larger respectively
-func minmax(n, min, max int) int {
-	if n < min {
+func clamp(value, min, max int) int {
+	if value < min {
 		return min
 	}
-	if n > max {
+	if value > max {
 		return max
 	}
-	return n
+	return value
 }

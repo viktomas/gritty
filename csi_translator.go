@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"io"
 	"log"
@@ -12,6 +13,41 @@ type bufferOP func(b *Buffer, pty io.Writer)
 func translateCSI(op operation) bufferOP {
 	if op.t != icsi {
 		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
+		return nil
+	}
+
+	// handle sequences that have the intermediate character (mostly private sequences)
+	if op.intermediate != "" {
+		switch op.r {
+		case 'c':
+			if op.intermediate == ">" {
+				return func(s *Buffer, pty io.Writer) {
+					// inspired by https://github.com/liamg/darktile/blob/159932ff3ecdc9f7d30ac026480587b84edb895b/internal/app/darktile/termutil/csi.go#L305
+					// we are VT100
+					// for DA2 we'll respond >0;0;0
+					_, err := pty.Write([]byte("\x1b[>0;0;0c"))
+					if err != nil {
+						log.Printf("Error when writing device information to PTY: %v", err)
+					}
+				}
+			}
+
+		case 'h':
+			if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
+				return func(s *Buffer, _ io.Writer) {
+					s.SaveCursor()
+					s.SwitchToAlternateBuffer()
+				}
+			}
+		case 'l':
+			if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
+				return func(s *Buffer, _ io.Writer) {
+					s.SwitchToPrimaryBuffer()
+					s.RestoreCursor()
+				}
+			}
+		}
+		fmt.Printf("unknown CSI sequence with intermediate char %v\n", op)
 		return nil
 	}
 
@@ -70,7 +106,7 @@ func translateCSI(op operation) bufferOP {
 					toClear = line // erase the whole line
 				}
 				for i := range toClear {
-					toClear[i] = s.makeRune(' ')
+					toClear[i] = s.MakeRune(' ')
 				}
 				return cursorCol
 			})
@@ -98,38 +134,15 @@ func translateCSI(op operation) bufferOP {
 			s.SaveCursor()
 		}
 	case 'u':
-		if op.intermediate == "" {
-			return func(s *Buffer, _ io.Writer) {
-				s.RestoreCursor()
-			}
-		}
-	case 'h':
-		if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-			return func(s *Buffer, _ io.Writer) {
-				s.SaveCursor()
-				s.SwitchToAlternateBuffer()
-			}
-		}
-	case 'l':
-		if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-			return func(s *Buffer, _ io.Writer) {
-				s.SwitchToPrimaryBuffer()
-				s.RestoreCursor()
-			}
+		return func(s *Buffer, _ io.Writer) {
+			s.RestoreCursor()
 		}
 	case 'c':
 		return func(s *Buffer, pty io.Writer) {
 			// inspired by https://github.com/liamg/darktile/blob/159932ff3ecdc9f7d30ac026480587b84edb895b/internal/app/darktile/termutil/csi.go#L305
 			// we are VT100
 			// for DA1 we'll respond ?1;2
-			// for DA2 we'll respond >0;0;0
-			response := "?1;2"
-			if op.intermediate == ">" {
-				response = ">0;0;0"
-			}
-
-			// write response to source pty
-			_, err := pty.Write([]byte("\x1b[" + response + "c"))
+			_, err := pty.Write([]byte("\x1b[?1;2c"))
 			if err != nil {
 				log.Printf("Error when writing device information to PTY: %v", err)
 			}
