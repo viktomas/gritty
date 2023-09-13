@@ -24,6 +24,7 @@ import (
 )
 
 const monoTypeface = "go mono, monospaced"
+const fontSize = 16
 
 func logDebug(f string, vars ...any) {
 	if os.Getenv("gritty_debug") != "" {
@@ -71,7 +72,7 @@ func loop(w *app.Window) error {
 				gtx := layout.NewContext(&ops, e)
 				if e.Size != windowSize {
 					windowSize = e.Size // make sure this code doesn't run until we resized again
-					screenSize := getScreenSize(gtx, 16, e.Size, th)
+					screenSize := getScreenSize(gtx, fontSize, e.Size, th)
 					if !controller.Started() {
 
 						var err error
@@ -112,7 +113,7 @@ func loop(w *app.Window) error {
 							Font: font.Font{
 								Typeface: font.Typeface(monoTypeface),
 							},
-							PxPerEm: fixed.I(gtx.Sp(16)),
+							PxPerEm: fixed.I(gtx.Sp(fontSize)),
 						}
 						th.Shaper.LayoutString(params, "Hello")
 						l := Label{
@@ -125,9 +126,9 @@ func loop(w *app.Window) error {
 							Typeface: font.Typeface(monoTypeface),
 						}
 
-						return l.Layout(gtx, th.Shaper, font, 16, controller.Runes())
-						// screenSize := getScreenSize(gtx, 16, e.Size, th)
-						// return l.Layout(gtx, th.Shaper, font, 16, generateTestContent(screenSize.rows, screenSize.cols))
+						return l.Layout(gtx, th.Shaper, font, fontSize, controller.Runes())
+						// screenSize := getScreenSize(gtx, fontSize, e.Size, th)
+						// return l.Layout(gtx, th.Shaper, font, fontSize, generateTestContent(screenSize.rows, screenSize.cols))
 					}),
 				)
 				e.Frame(gtx.Ops)
@@ -177,7 +178,7 @@ func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point,
 		Font: font.Font{
 			Typeface: font.Typeface(monoTypeface),
 		},
-		PxPerEm: fixed.I(gtx.Sp(16)),
+		PxPerEm: fixed.I(gtx.Sp(fontSize)),
 	}
 	th.Shaper.Layout(params, strings.NewReader("A"))
 	g, ok := th.Shaper.NextGlyph()
