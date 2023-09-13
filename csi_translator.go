@@ -33,17 +33,43 @@ func translateCSI(op operation) bufferOP {
 			}
 
 		case 'h':
-			if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-				return func(s *Buffer, _ io.Writer) {
-					s.SaveCursor()
-					s.SwitchToAlternateBuffer()
+			// DEC Private Mode Set (DECSET).
+			// source https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+			if op.intermediate == "?" {
+				switch op.param(0, 0) {
+				// Origin Mode (DECOM), VT100.
+				case 6:
+					return func(s *Buffer, _ io.Writer) {
+						s.SetOriginMode(true)
+					}
+				// Save cursor as in DECSC, After saving the cursor, switch to the Alternate Screen Buffer,
+				case 1049:
+					return func(s *Buffer, _ io.Writer) {
+						s.SaveCursor()
+						s.SwitchToAlternateBuffer()
+					}
+				default:
+					log.Println("unknown DEC Private mode set parameter: ", op)
+
 				}
 			}
 		case 'l':
-			if len(op.params) == 1 && op.params[0] == 1049 && op.intermediate == "?" {
-				return func(s *Buffer, _ io.Writer) {
-					s.SwitchToPrimaryBuffer()
-					s.RestoreCursor()
+			if op.intermediate == "?" {
+				switch op.param(0, 0) {
+				// Normal Cursor Mode (DECOM)
+				case 6:
+					return func(s *Buffer, _ io.Writer) {
+						s.SetOriginMode(false)
+					}
+				// Use Normal Screen Buffer and restore cursor as in DECRC
+				case 1049:
+					return func(s *Buffer, _ io.Writer) {
+						s.SwitchToPrimaryBuffer()
+						s.RestoreCursor()
+					}
+				default:
+					log.Println("unknown DEC Private mode set parameter: ", op)
+
 				}
 			}
 		}
@@ -81,14 +107,17 @@ func translateCSI(op operation) bufferOP {
 			s.MoveCursorRelative(-dx, 0)
 		}
 	case 'J':
-		return func(s *Buffer, _ io.Writer) {
+		return func(b *Buffer, _ io.Writer) {
 			switch op.param(0, 0) {
 			case 0:
-				s.CleanForward()
+				b.ClearCurrentLine(b.cursor.x, b.size.cols)
+				b.ClearLines(b.cursor.y+1, b.size.rows)
 			case 1:
-				s.CleanBackward()
+				b.ClearCurrentLine(0, b.cursor.x+1)
+				b.ClearLines(0, b.cursor.y-1)
 			case 2:
-				s.ClearFull()
+				b.ClearLines(0, b.size.rows)
+				b.SetCursor(0, 0)
 			default:
 				log.Println("unknown CSI [J parameter: ", op.params[0])
 			}
@@ -110,11 +139,7 @@ func translateCSI(op operation) bufferOP {
 		fallthrough
 	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).
 		return func(b *Buffer, _ io.Writer) {
-			// FIXME: move the validation of the bounds to the buffer
-			b.cursor = cursor{
-				y: clamp(op.param(0, 1)-1, 0, b.size.rows-1),
-				x: clamp(op.param(1, 1)-1, 0, b.size.cols-1),
-			}
+			b.SetCursor(op.param(1, 1)-1, op.param(0, 1)-1)
 		}
 	case 'r':
 		return func(s *Buffer, w io.Writer) {

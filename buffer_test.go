@@ -9,13 +9,16 @@ func TestNewBuffer(t *testing.T) {
 	}
 }
 
-func TestClearFull(t *testing.T) {
-	s := NewBuffer(2, 2)
-	s.WriteRune('a')
-	s.ClearFull()
-	if s.String() != "  \n  \n" {
-		t.Fatalf("the buffer has not been cleared and it is:\n%q", s.String())
-	}
+func TestClearLines(t *testing.T) {
+	t.Run("full clear", func(t *testing.T) {
+		s := NewBuffer(2, 2)
+		s.WriteRune('a')
+		s.ClearLines(0, s.size.rows)
+		if s.String() != "  \n  \n" {
+			t.Fatalf("the buffer has not been cleared and it is:\n%q", s.String())
+		}
+
+	})
 }
 
 func TestScrollUp(t *testing.T) {
@@ -25,7 +28,7 @@ func TestScrollUp(t *testing.T) {
 		s.CR()
 		s.LF()
 		s.WriteRune('b')
-		s.scrollUp()
+		s.scrollUp(1)
 		if s.String() != "b \n  \n" {
 			t.Fatalf("the a character was supposed to scroll of the buffer:\n%q", s.String())
 		}
@@ -37,7 +40,7 @@ func TestScrollUp(t *testing.T) {
 		s.WriteRune('c')
 		s.WriteRune('d')
 		s.SetScrollArea(1, 3)
-		s.scrollUp()
+		s.scrollUp(1)
 		if s.String() != "a\nc\n \nd\n \n" {
 			t.Fatalf("the b character was supposed to scroll of the margin:\n%q", s.String())
 		}

@@ -38,6 +38,12 @@ type Buffer struct {
 	scrollAreaStart int
 	scrollAreaEnd   int
 	nextWriteWraps  bool
+	// originMode controls where the cursor can be placed with relationship to the scrolling region (margins)
+	// false - the origin is at the upper-left character position on the screen. Line and column numbers are, therefore, independent of current margin settings. The cursor may be positioned outside the margins with a cursor position (CUP) or horizontal and vertical position (HVP) control.
+	//
+	// true - the origin is at the upper-left character position within the margins. Line and column numbers are therefore relative to the current margin settings. The cursor is not allowed to be positioned outside the margins.
+	// described in https://vt100.net/docs/vt100-ug/chapter3.html
+	originMode bool
 	brush
 }
 
@@ -62,16 +68,18 @@ func (b *Buffer) CR() {
 func (b *Buffer) LF() {
 	b.cursor.y++
 	if b.cursor.y >= b.scrollAreaEnd {
-		b.scrollUp()
+		b.scrollUp(1)
 		b.cursor.y--
 	}
 }
 
-func (b *Buffer) scrollUp() {
-	for i := b.scrollAreaStart + 1; i < b.scrollAreaEnd; i++ {
-		b.lines[i-1] = b.lines[i]
+func (b *Buffer) scrollUp(n int) {
+	for i := b.scrollAreaStart + n; i < b.scrollAreaEnd; i++ {
+		b.lines[i-n] = b.lines[i]
 	}
-	b.lines[b.scrollAreaEnd-1] = b.newLine(b.size.cols)
+	for i := b.scrollAreaEnd - n; i < b.scrollAreaEnd; i++ {
+		b.lines[i] = b.newLine(b.size.cols)
+	}
 }
 
 func (b *Buffer) ResetBrush() {
@@ -173,21 +181,6 @@ func (b *Buffer) ClearCurrentLine(start, end int) {
 	}
 }
 
-func (b *Buffer) ClearFull() {
-	b.ClearLines(0, b.size.rows)
-	b.cursor.x, b.cursor.y = 0, b.scrollAreaStart
-}
-
-func (b *Buffer) CleanForward() {
-	b.ClearCurrentLine(b.cursor.x, b.size.cols)
-	b.ClearLines(b.cursor.y+1, b.size.rows)
-}
-
-func (b *Buffer) CleanBackward() {
-	b.ClearCurrentLine(0, b.cursor.x+1)
-	b.ClearLines(0, b.cursor.y-1)
-}
-
 func (b *Buffer) Tab() {
 	newX := (b.cursor.x / 8 * 8) + 8
 	if newX < b.size.cols {
@@ -234,8 +227,7 @@ func (b *Buffer) Backspace() {
 }
 
 func (b *Buffer) MoveCursorRelative(dx, dy int) {
-	b.cursor.x = clamp(b.cursor.x+dx, 0, b.size.cols-1)
-	b.cursor.y = clamp(b.cursor.y+dy, 0, b.size.rows-1)
+	b.SetCursor(b.cursor.x+dx, b.cursor.y+dy)
 }
 
 func (b *Buffer) SaveCursor() {
@@ -250,7 +242,33 @@ func (b *Buffer) SwitchToAlternateBuffer() {
 	b.lines = b.alternateLines
 	b.alternateLines = primaryLines
 	b.bufferType = bufAlternate
-	b.ClearFull()
+	b.ClearLines(0, b.size.rows)
+	b.SetCursor(0, 0)
+}
+
+// minY returns the index of the first row, this can be larger than 0 if the
+// scroll area is reduced and the origin mode is enabled
+func (b *Buffer) minY() int {
+	if b.originMode {
+		return b.scrollAreaStart
+	}
+	return 0
+}
+
+// maxY returns the index of the last row + 1, this can be smaller than b.size.rows if the
+// scroll area is reduced and the origin mode is enabled
+func (b *Buffer) maxY() int {
+	if b.originMode {
+		return b.scrollAreaEnd
+	}
+	return b.size.rows
+}
+
+func (b *Buffer) SetCursor(x, y int) {
+	b.cursor = cursor{
+		x: clamp(x, 0, b.size.cols-1),
+		y: clamp(y, b.minY(), b.maxY()-1),
+	}
 }
 
 func (b *Buffer) SwitchToPrimaryBuffer() {
@@ -267,6 +285,8 @@ func (b *Buffer) RestoreCursor() {
 	b.cursor = b.savedCursor
 }
 
+// ReverseIndex Moves the active position to the same horizontal position on the preceding line. If the active position is at the top margin, a scroll down is performed. Format Effector
+// [docs}(https://vt100.net/docs/vt100-ug/chapter3.html)
 func (b *Buffer) ReverseIndex() {
 	if b.cursor.y == b.scrollAreaStart {
 		b.scrollDown(1)
@@ -282,6 +302,11 @@ func (b *Buffer) scrollDown(lines int) {
 	for i := b.scrollAreaStart; i < b.scrollAreaStart+lines; i++ {
 		b.lines[i] = b.newLine(b.size.cols)
 	}
+}
+
+func (b *Buffer) SetOriginMode(enabled bool) {
+	b.originMode = true
+	b.SetCursor(0, 0)
 }
 
 // clamp returns n if  fits into the range set by min and max, otherwise it
