@@ -103,10 +103,7 @@ func (c *Controller) handleOp(op operation) {
 	case iprint:
 		c.buffer.WriteRune(op.r)
 	case icsi:
-		fn := translateCSI(op)
-		if fn != nil {
-			fn(c.buffer, c.ptmx)
-		}
+		translateCSI(op, c.buffer, c.ptmx)
 	case iosc:
 		fmt.Println("unhandled OSC instruction: ", op)
 	case iesc:
