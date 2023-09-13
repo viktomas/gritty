@@ -115,7 +115,12 @@ func loop(w *app.Window) error {
 							PxPerEm: fixed.I(gtx.Sp(16)),
 						}
 						th.Shaper.LayoutString(params, "Hello")
-						l := Label{}
+						l := Label{
+							// we don't put new lines at the end of the line
+							// so we need the layout mechanism to use a policy
+							// to maximize the number of characters printed per line
+							WrapPolicy: text.WrapGraphemes,
+						}
 						font := font.Font{
 							Typeface: font.Typeface(monoTypeface),
 						}
@@ -137,14 +142,18 @@ func generateTestContent(rows, cols int) []paintedRune {
 	for r := 0; r < rows; r++ {
 		ch := fmt.Sprintf("%d", r)
 		for c := 0; c < cols; c++ {
+			r := rune(ch[len(ch)-1])
+			if c%4 == 0 {
+				r = ' '
+			}
 			pr := paintedRune{
-				r:  rune(ch[len(ch)-1]),
+				r:  r,
 				fg: color.NRGBA{A: 255},
 				bg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
 			}
 			if c == 0 {
 				pr = paintedRune{
-					r:  rune(ch[len(ch)-1]),
+					r:  pr.r,
 					fg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
 					bg: color.NRGBA{A: 255, R: 255},
 				}
