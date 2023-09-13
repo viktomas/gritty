@@ -100,7 +100,7 @@ func loop(w *app.Window) error {
 				// Capture and handle keyboard input
 				for _, ev := range gtx.Events(&location) {
 					if ke, ok := ev.(key.Event); ok {
-						fmt.Println("key pressed", ke)
+						logDebug("key pressed %v", ke)
 						if ke.State == key.Press {
 							controller.KeyPressed(ke.Name, ke.Modifiers)
 						}

@@ -37,7 +37,6 @@ type Buffer struct {
 	savedCursor     cursor
 	scrollAreaStart int
 	scrollAreaEnd   int
-	nextWriteWraps  bool
 	// originMode controls where the cursor can be placed with relationship to the scrolling region (margins)
 	// false - the origin is at the upper-left character position on the screen. Line and column numbers are, therefore, independent of current margin settings. The cursor may be positioned outside the margins with a cursor position (CUP) or horizontal and vertical position (HVP) control.
 	//
