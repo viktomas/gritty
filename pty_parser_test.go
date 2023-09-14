@@ -92,7 +92,7 @@ func TestParseCSI(t *testing.T) {
 			{[]byte{asciiESC, '[', 0x48}, operation{t: icsi, r: 'H'}},                         // Cursor Home
 			{[]byte{asciiESC, '[', 0x4a}, operation{t: icsi, r: 'J'}},                         // Erase display
 			{[]byte{asciiESC, '[', 0x4b}, operation{t: icsi, r: 'K'}},                         // Erase line
-			// Add more test cases here
+			{[]byte{asciiESC, '[', '0', 'H'}, operation{t: icsi, params: []int{0}, r: 'H'}},   // Erase line
 		}
 
 		for _, test := range tests {
@@ -117,5 +117,52 @@ func TestParseCSI(t *testing.T) {
 			t.Fatalf("second operation should have been %v, but was %v", expected2, output[1])
 		}
 	})
+}
 
+func TestParam(t *testing.T) {
+	testCases := []struct {
+		desc     string
+		params   []int
+		index    int
+		dflt     int
+		expected int
+	}{
+		{
+			desc:     "returns default if params is empty",
+			params:   []int{},
+			index:    0,
+			dflt:     10,
+			expected: 10,
+		},
+		{
+			desc:     "returns default if params is too short",
+			params:   []int{1},
+			index:    1,
+			dflt:     10,
+			expected: 10,
+		},
+		{
+			desc:     "returns default if the parsed param is 0",
+			params:   []int{0},
+			index:    0,
+			dflt:     10,
+			expected: 10,
+		},
+		{
+			desc:     "returns the value on the index",
+			params:   []int{1, 2},
+			index:    1,
+			dflt:     10,
+			expected: 2,
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			op := operation{t: icsi, params: tC.params, r: 'A'}
+			result := op.param(tC.index, tC.dflt)
+			if result != tC.expected {
+				t.Fatalf("the result should have been %d, but was %d", tC.expected, result)
+			}
+		})
+	}
 }

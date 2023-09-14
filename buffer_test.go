@@ -30,6 +30,14 @@ func TestNewBuffer(t *testing.T) {
 	}
 }
 
+func FuzzWriteRune(f *testing.F) {
+	b := NewBuffer(20, 10)
+	f.Add('A')
+	f.Fuzz(func(t *testing.T, r rune) {
+		b.WriteRune(r)
+	})
+}
+
 func TestClearLines(t *testing.T) {
 	t.Run("full clear", func(t *testing.T) {
 		b := makeTestBuffer(t, `
@@ -107,6 +115,24 @@ func TestWriteRune(t *testing.T) {
 			t.Fatalf("the character didn't auto wrap:\n%q", b.String())
 		}
 	})
+
+	t.Run("wraps only with next write (doesn't wrap when EOL is reached)", func(t *testing.T) {
+		b := NewBuffer(2, 2)
+		b.WriteRune('a')
+		b.WriteRune('a')
+		b.WriteRune('a')
+		b.WriteRune('a')
+		expected := "aa\naa\n"
+		if b.String() != expected {
+			t.Fatalf("buffer was supposed to be filled with a's:\nexpected:%s\ngot:\n%s", expected, b.String())
+		}
+		b.WriteRune('b')
+		expected = "aa\nb \n"
+		if b.String() != expected {
+			t.Fatalf("next rune (b) was supposed to trigger autowrap (and scroll):\nexpected:%s\ngot:\n%s", expected, b.String())
+		}
+
+	})
 }
 
 func TestReverseIndex(t *testing.T) {
@@ -114,12 +140,10 @@ func TestReverseIndex(t *testing.T) {
 		b := makeTestBuffer(t, `
 		aa
 		bb
-		cc
 		`, 0, 0)
 		expected := trimExpectation(t, `
 		__
 		aa
-		bb
 		`)
 		b.ReverseIndex()
 		if b.String() != expected {
@@ -142,7 +166,7 @@ func TestReverseIndex(t *testing.T) {
 		c
 		e
 		`)
-		b.SetScrollArea(1, 3)
+		b.SetScrollArea(1, 4)
 		b.ReverseIndex()
 		if b.String() != expected {
 			t.Fatalf("Buffer didn't scroll down within the scroll region\nExpected:\n%s\nGot:\n%s", expected, b.String())

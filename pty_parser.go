@@ -29,7 +29,7 @@ type operation struct {
 
 // param returns parameter on the i index or def(ault) value if the param is missing or 0
 func (o operation) param(i int, def int) int {
-	if len(o.params) == 0 || len(o.params) < i {
+	if len(o.params) == 0 || len(o.params) <= i {
 		return def
 	}
 	if o.params[i] == 0 {
