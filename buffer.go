@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-type cursor struct {
-	x, y int
+type Cursor struct {
+	X, Y int
 }
 
 var (
@@ -29,12 +29,19 @@ const (
 )
 
 type Buffer struct {
-	lines           [][]paintedRune
-	alternateLines  [][]paintedRune
-	bufferType      bufferType
-	size            BufferSize
-	cursor          cursor
-	savedCursor     cursor
+	lines          [][]paintedRune
+	alternateLines [][]paintedRune
+	bufferType     bufferType
+	size           BufferSize
+	cursor         Cursor
+	savedCursor    Cursor
+	// nextWriteWraps indicates whether the next WriteRune will start on the new line.
+	// if true, then before writing the next rune, we'll execute CR LF
+	//
+	// Without this field, we would have to CR LF straight after
+	// writing the last rune in the row. But LF causes screen to scroll on the last line
+	// which would make it impossible to write the last character on the screen
+	nextWriteWraps  bool
 	scrollAreaStart int
 	scrollAreaEnd   int
 	// originMode controls where the cursor can be placed with relationship to the scrolling region (margins)
@@ -62,17 +69,17 @@ func NewBuffer(cols, rows int) *Buffer {
 }
 
 func (b *Buffer) CR() {
-	b.cursor.x = 0
+	b.cursor.X = 0
 }
 func (b *Buffer) LF() {
-	b.cursor.y++
-	if b.cursor.y >= b.scrollAreaEnd {
-		b.scrollUp(1)
-		b.cursor.y--
+	b.cursor.Y++
+	if b.cursor.Y >= b.scrollAreaEnd {
+		b.ScrollUp(1)
+		b.cursor.Y--
 	}
 }
 
-func (b *Buffer) scrollUp(n int) {
+func (b *Buffer) ScrollUp(n int) {
 	for i := b.scrollAreaStart + n; i < b.scrollAreaEnd; i++ {
 		b.lines[i-n] = b.lines[i]
 	}
@@ -96,7 +103,7 @@ func (b *Buffer) newLine(cols int) []paintedRune {
 func (b *Buffer) SetScrollArea(start, end int) {
 	b.scrollAreaStart = start
 	b.scrollAreaEnd = end
-	b.cursor = cursor{x: 0, y: start}
+	b.cursor = Cursor{X: 0, Y: start}
 }
 
 func (b *Buffer) resetScrollArea() {
@@ -114,12 +121,16 @@ func (b *Buffer) MakeRune(r rune) paintedRune {
 }
 
 func (b *Buffer) WriteRune(r rune) {
-	b.lines[b.cursor.y][b.cursor.x] = b.MakeRune(r)
-	b.cursor.x++
-	if b.cursor.x >= b.size.cols {
-		//soft wrap
+	if b.nextWriteWraps == true {
+		b.nextWriteWraps = false
+		// soft wrap
 		b.CR()
 		b.LF()
+	}
+	b.lines[b.cursor.Y][b.cursor.X] = b.MakeRune(r)
+	b.cursor.X++
+	if b.cursor.X >= b.size.cols {
+		b.nextWriteWraps = true
 	}
 }
 
@@ -128,7 +139,7 @@ func (b *Buffer) Runes() []paintedRune {
 	for ri, r := range b.lines {
 		for ci, c := range r {
 			// invert cursor every odd interval
-			if (b.cursor.x == ci) && b.cursor.y == ri && shouldInvertCursor() {
+			if (b.cursor.X == ci) && b.cursor.Y == ri && shouldInvertCursor() {
 				out = append(out, paintedRune{
 					r:  c.r,
 					fg: c.bg,
@@ -143,6 +154,11 @@ func (b *Buffer) Runes() []paintedRune {
 	}
 
 	return out
+}
+
+func (b *Buffer) Cursor() Cursor {
+	return b.cursor
+
 }
 
 func (b *Buffer) String() string {
@@ -174,18 +190,18 @@ func (b *Buffer) ClearCurrentLine(start, end int) {
 	s := clamp(start, 0, b.size.cols)
 	e := clamp(end, 0, b.size.cols)
 
-	currentLineToClean := b.lines[b.cursor.y][s:e]
+	currentLineToClean := b.lines[b.cursor.Y][s:e]
 	for i := range currentLineToClean {
 		currentLineToClean[i] = b.MakeRune(' ')
 	}
 }
 
 func (b *Buffer) Tab() {
-	newX := (b.cursor.x / 8 * 8) + 8
+	newX := (b.cursor.X / 8 * 8) + 8
 	if newX < b.size.cols {
-		b.cursor.x = newX
+		b.cursor.X = newX
 	} else {
-		b.cursor.x = b.size.cols - 1 // if the tab can't be fully added, lets move the cursor to the last column
+		b.cursor.X = b.size.cols - 1 // if the tab can't be fully added, lets move the cursor to the last column
 	}
 }
 
@@ -218,15 +234,15 @@ func (b *Buffer) Resize(size BufferSize) bool {
 }
 
 func (b *Buffer) Backspace() {
-	x := b.cursor.x
+	x := b.cursor.X
 	if x == 0 {
 		return
 	}
-	b.cursor.x = x - 1
+	b.cursor.X = x - 1
 }
 
 func (b *Buffer) MoveCursorRelative(dx, dy int) {
-	b.SetCursor(b.cursor.x+dx, b.cursor.y+dy)
+	b.SetCursor(b.cursor.X+dx, b.cursor.Y+dy)
 }
 
 func (b *Buffer) SaveCursor() {
@@ -264,10 +280,11 @@ func (b *Buffer) maxY() int {
 }
 
 func (b *Buffer) SetCursor(x, y int) {
-	b.cursor = cursor{
-		x: clamp(x, 0, b.size.cols-1),
-		y: clamp(y, b.minY(), b.maxY()-1),
+	b.cursor = Cursor{
+		X: clamp(x, 0, b.size.cols-1),
+		Y: clamp(y, b.minY(), b.maxY()-1),
 	}
+	b.nextWriteWraps = false
 }
 
 func (b *Buffer) SwitchToPrimaryBuffer() {
@@ -287,10 +304,10 @@ func (b *Buffer) RestoreCursor() {
 // ReverseIndex Moves the active position to the same horizontal position on the preceding line. If the active position is at the top margin, a scroll down is performed. Format Effector
 // [docs}(https://vt100.net/docs/vt100-ug/chapter3.html)
 func (b *Buffer) ReverseIndex() {
-	if b.cursor.y == b.scrollAreaStart {
+	if b.cursor.Y == b.scrollAreaStart {
 		b.scrollDown(1)
 	} else {
-		b.cursor.y = b.cursor.y - 1
+		b.cursor.Y = b.cursor.Y - 1
 	}
 }
 

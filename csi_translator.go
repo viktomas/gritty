@@ -8,6 +8,7 @@ import (
 	"slices"
 )
 
+// translateCSI will get a CSI (Control Sequence Introducer) sequence (operation) and enact it on the buffer
 func translateCSI(op operation, b *Buffer, pty io.Writer) {
 	if op.t != icsi {
 		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
@@ -65,6 +66,7 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 	}
 
 	switch op.r {
+	// CUU - Cursor up
 	case 'A':
 		dy := op.param(0, 1)
 		b.MoveCursorRelative(0, -dy)
@@ -73,26 +75,28 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 		// - https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 	case 'e':
 		fallthrough
+	// CUD - Cursor down
 	case 'B':
 		dy := op.param(0, 1)
 		b.MoveCursorRelative(0, dy)
 	case 'a': // a is also CUF
 		fallthrough
-	// CUF
+	// CUF - cursor forward
 	case 'C':
 		dx := op.param(0, 1)
 		b.MoveCursorRelative(dx, 0)
+	// CUB - Cursor bacward
 	case 'D':
 		dx := op.param(0, 1)
 		b.MoveCursorRelative(-dx, 0)
 	case 'J':
 		switch op.param(0, 0) {
 		case 0:
-			b.ClearCurrentLine(b.cursor.x, b.size.cols)
-			b.ClearLines(b.cursor.y+1, b.size.rows)
+			b.ClearCurrentLine(b.Cursor().X, b.size.cols)
+			b.ClearLines(b.Cursor().Y+1, b.size.rows)
 		case 1:
-			b.ClearCurrentLine(0, b.cursor.x+1)
-			b.ClearLines(0, b.cursor.y-1)
+			b.ClearCurrentLine(0, b.Cursor().X+1)
+			b.ClearLines(0, b.Cursor().Y-1)
 		case 2:
 			b.ClearLines(0, b.size.rows)
 			b.SetCursor(0, 0)
@@ -102,9 +106,9 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 	case 'K':
 		switch op.param(0, 0) {
 		case 0:
-			b.ClearCurrentLine(b.cursor.x, b.size.cols)
+			b.ClearCurrentLine(b.Cursor().X, b.size.cols)
 		case 1:
-			b.ClearCurrentLine(0, b.cursor.x+1)
+			b.ClearCurrentLine(0, b.Cursor().X+1)
 		case 2:
 			b.ClearCurrentLine(0, b.size.cols)
 		default:
