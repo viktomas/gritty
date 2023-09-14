@@ -96,13 +96,38 @@ func TestScrollUp(t *testing.T) {
 }
 
 func TestSetScrollArea(t *testing.T) {
-	b := NewBuffer(2, 5)
-	b.WriteRune('a')
-	b.SetScrollArea(1, 3)
+	t.Run("sets scroll area within the buffer", func(t *testing.T) {
+		b := NewBuffer(2, 5)
+		b.WriteRune('a')
+		b.SetScrollArea(1, 3)
 
-	if b.Cursor() != (Cursor{X: 0, Y: 1}) {
-		t.Fatalf("Cursor should be set to the top of the scroll region (0,1), but is (%d,%d)", b.cursor.X, b.cursor.Y)
-	}
+		if b.Cursor() != (Cursor{X: 0, Y: 1}) {
+			t.Fatalf("Cursor should be set to the top of the scroll region (0,1), but is (%d,%d)", b.cursor.X, b.cursor.Y)
+		}
+	})
+
+	t.Run("clamps parameters so that the range is always within the buffer", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		`, 0, 0)
+		expected := trimExpectation(t, `
+		b
+		c
+		_
+		`)
+		b.SetScrollArea(-10, 20)
+
+		if b.Cursor() != (Cursor{X: 0, Y: 0}) {
+			t.Fatalf("Cursor should be set to the top of the scroll region (0,0), but is (%d,%d)", b.cursor.X, b.cursor.Y)
+		}
+
+		b.ScrollUp(1)
+		if b.String() != expected {
+			t.Fatalf("The whole buffer should have scrolled but it didn't:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
 }
 
 func TestWriteRune(t *testing.T) {

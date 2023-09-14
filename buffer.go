@@ -101,9 +101,9 @@ func (b *Buffer) newLine(cols int) []paintedRune {
 }
 
 func (b *Buffer) SetScrollArea(start, end int) {
-	b.scrollAreaStart = start
-	b.scrollAreaEnd = end
-	b.cursor = Cursor{X: 0, Y: start}
+	b.scrollAreaStart = clamp(start, 0, b.size.rows-1)
+	b.scrollAreaEnd = clamp(end, b.scrollAreaStart+1, b.size.rows)
+	b.cursor = Cursor{X: 0, Y: b.scrollAreaStart}
 }
 
 func (b *Buffer) resetScrollArea() {
@@ -242,7 +242,10 @@ func (b *Buffer) Backspace() {
 }
 
 func (b *Buffer) MoveCursorRelative(dx, dy int) {
-	b.SetCursor(b.cursor.X+dx, b.cursor.Y+dy)
+	b.SetCursor(
+		b.cursor.X+dx,
+		clamp(b.cursor.Y+dy, b.scrollAreaStart, b.scrollAreaEnd),
+	)
 }
 
 func (b *Buffer) SaveCursor() {
@@ -307,7 +310,11 @@ func (b *Buffer) ReverseIndex() {
 	if b.cursor.Y == b.scrollAreaStart {
 		b.scrollDown(1)
 	} else {
-		b.cursor.Y = b.cursor.Y - 1
+		// TODO this can be probably written nicer
+		// I actually don't know what is the reverse index cursor up, should it
+		// be like relative cursor movement (clamped by scrolling area) or should
+		// U allow it to move outside of margins???
+		b.cursor.Y = clamp(b.cursor.Y-1, 0, b.cursor.Y)
 	}
 }
 

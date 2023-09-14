@@ -120,7 +120,7 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 		b.SetCursor(op.param(1, 1)-1, op.param(0, 1)-1)
 	case 'r':
 		start := op.param(0, 1)
-		end := op.param(1, len(b.lines))
+		end := op.param(1, b.size.rows)
 		// the DECSTBM docs https://vt100.net/docs/vt510-rm/DECSTBM.html
 		// say that the index you get starts with 1 (first line)
 		// and ends with len(lines)-1 (last line)
