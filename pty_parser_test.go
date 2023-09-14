@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -44,7 +45,7 @@ func TestParseCSI(t *testing.T) {
 	t.Run("parses cursor movements", func(t *testing.T) {
 		testCases := []struct {
 			desc  string
-			input byte
+			input rune
 		}{
 			{desc: "cursor up", input: 'A'},
 			{desc: "cursor down", input: 'B'},
@@ -54,17 +55,17 @@ func TestParseCSI(t *testing.T) {
 			{desc: "cursor previous line", input: 'F'},
 			{desc: "cursor horizontal absolute", input: 'G'},
 		}
-		for _, tC := range testCases {
-			t.Run(tC.desc, func(t *testing.T) {
-				input := []byte{asciiESC, '[', tC.input, asciiESC, '[', '3', '9', tC.input}
+		for _, tc := range testCases {
+			t.Run(tc.desc, func(t *testing.T) {
+				input := []byte(fmt.Sprintf("\x1b[%[1]c\x1b[39%[1]c", tc.input))
 				instructions := NewDecoder().Parse(input)
 				if len(instructions) != 2 {
 					t.Fatalf("The parser should have returned 2 instruction but returned %d for byte %v", len(instructions), input)
 				}
 
 				i0, i1 := instructions[0], instructions[1]
-				expected0 := operation{t: icsi, r: rune(tC.input)}
-				expected1 := operation{t: icsi, r: rune(tC.input), params: []int{39}}
+				expected0 := operation{t: icsi, r: rune(tc.input)}
+				expected1 := operation{t: icsi, r: rune(tc.input), params: []int{39}}
 				compInst(t, expected0, i0)
 				compInst(t, expected1, i1)
 			})
@@ -86,13 +87,12 @@ func TestParseCSI(t *testing.T) {
 			input    []byte
 			expected operation
 		}{
-			{[]byte{asciiESC, '[', 0x41}, operation{t: icsi, r: 'A'}},                         // CUU (Cursor Up)
-			{[]byte{asciiESC, '[', 0x31, 0x6d}, operation{t: icsi, params: []int{1}, r: 'm'}}, // Bold
-			{[]byte{asciiESC, '[', 0x34, 0x6d}, operation{t: icsi, params: []int{4}, r: 'm'}}, // Underline
-			{[]byte{asciiESC, '[', 0x48}, operation{t: icsi, r: 'H'}},                         // Cursor Home
-			{[]byte{asciiESC, '[', 0x4a}, operation{t: icsi, r: 'J'}},                         // Erase display
-			{[]byte{asciiESC, '[', 0x4b}, operation{t: icsi, r: 'K'}},                         // Erase line
-			{[]byte{asciiESC, '[', '0', 'H'}, operation{t: icsi, params: []int{0}, r: 'H'}},   // Erase line
+			{[]byte("\x1b[1m"), operation{t: icsi, params: []int{1}, r: 'm'}}, // Bold
+			{[]byte("\x1b[4m"), operation{t: icsi, params: []int{4}, r: 'm'}}, // Underline
+			{[]byte("\x1b[H"), operation{t: icsi, r: 'H'}},                    // Cursor Home
+			{[]byte("\x1b[J"), operation{t: icsi, r: 'J'}},                    // Erase display
+			{[]byte("\x1b[K"), operation{t: icsi, r: 'K'}},                    // Erase line
+			{[]byte("\x1b[0H"), operation{t: icsi, params: []int{0}, r: 'H'}}, // Erase line
 		}
 
 		for _, test := range tests {
@@ -156,12 +156,12 @@ func TestParam(t *testing.T) {
 			expected: 2,
 		},
 	}
-	for _, tC := range testCases {
-		t.Run(tC.desc, func(t *testing.T) {
-			op := operation{t: icsi, params: tC.params, r: 'A'}
-			result := op.param(tC.index, tC.dflt)
-			if result != tC.expected {
-				t.Fatalf("the result should have been %d, but was %d", tC.expected, result)
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			op := operation{t: icsi, params: tc.params, r: 'A'}
+			result := op.param(tc.index, tc.dflt)
+			if result != tc.expected {
+				t.Fatalf("the result should have been %d, but was %d", tc.expected, result)
 			}
 		})
 	}
