@@ -12,8 +12,8 @@ type Cursor struct {
 }
 
 var (
-	defaultFG = color.NRGBA{A: 255}
-	defaultBG = color.NRGBA{A: 0xff, R: 0xff, G: 0xff, B: 0xff}
+	defaultFG = color.NRGBA{A: 0xff, R: 0xeb, G: 0xdb, B: 0xb2}
+	defaultBG = color.NRGBA{A: 0xff, R: 0x28, G: 0x28, B: 0x28}
 )
 
 type brush struct {

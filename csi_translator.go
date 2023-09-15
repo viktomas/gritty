@@ -151,7 +151,7 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 			b.ResetBrush()
 		case 1:
 			// poor man's bold because I can't change the font
-			b.brush = brush{fg: defaultFG, bg: color.NRGBA{A: 16}}
+			b.brush = brush{fg: defaultFG, bg: color.NRGBA{A: 255, R: 0, G: 0, B: 0}}
 		case 7:
 			b.brush = brush{fg: defaultBG, bg: defaultFG}
 		case 27:
