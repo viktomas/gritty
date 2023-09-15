@@ -17,7 +17,7 @@ type Controller struct {
 	buffer *Buffer
 	ptmx   *os.File
 	mu     sync.RWMutex
-	render <-chan struct{}
+	render chan struct{}
 	in     chan []byte
 	done   chan struct{}
 }
@@ -42,6 +42,7 @@ func (c *Controller) Start(shell string, cols, rows int) error {
 	go func() {
 		for op := range ops {
 			c.handleOp(op)
+			c.render <- struct{}{}
 		}
 		close(c.done)
 	}()
@@ -71,6 +72,8 @@ func (c *Controller) Runes() []paintedRune {
 	return c.buffer.Runes()
 }
 
+// Render returns a channel that will get signal every time we need to
+// redraw the terminal GUI
 func (c *Controller) Render() <-chan struct{} {
 	return c.render
 }
