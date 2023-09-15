@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"io"
 	"log"
 	"slices"
@@ -150,12 +149,17 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 		case 0:
 			b.ResetBrush()
 		case 1:
-			// poor man's bold because I can't change the font
-			b.brush = brush{fg: defaultFG, bg: color.NRGBA{A: 255, R: 0, G: 0, B: 0}}
+			br := b.Brush()
+			br.bold = true
+			b.SetBrush(br)
 		case 7:
-			b.brush = brush{fg: defaultBG, bg: defaultFG}
+			br := b.Brush()
+			br.invert = true
+			b.SetBrush(br)
 		case 27:
-			b.brush = brush{fg: defaultFG, bg: defaultBG}
+			br := b.Brush()
+			br.invert = false
+			b.SetBrush(br)
 		}
 	default:
 		log.Printf("Unknown CSI instruction %v", op)

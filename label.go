@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"strings"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -18,6 +19,11 @@ import (
 	"gioui.org/unit"
 
 	"golang.org/x/image/math/fixed"
+)
+
+var (
+	defaultFG = color.NRGBA{A: 0xff, R: 0xeb, G: 0xdb, B: 0xb2}
+	defaultBG = color.NRGBA{A: 0xff, R: 0x28, G: 0x28, B: 0x28}
 )
 
 // Label is a widget for laying out and drawing text. Labels are always
@@ -40,11 +46,6 @@ type Label struct {
 	LineHeightScale float32
 }
 
-type paintedRune struct {
-	r      rune
-	fg, bg color.NRGBA
-}
-
 type paintedGlyph struct {
 	g      text.Glyph
 	r      rune
@@ -52,7 +53,7 @@ type paintedGlyph struct {
 }
 
 // Layout the label with the given shaper, font, size, text, and material.
-func (l Label) Layout(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []paintedRune) layout.Dimensions {
+func (l Label) Layout(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []BrushedRune) layout.Dimensions {
 	dims, _ := l.LayoutDetailed(gtx, lt, font, size, txt)
 	return dims
 }
@@ -65,13 +66,13 @@ type TextInfo struct {
 }
 
 // Layout the label with the given shaper, font, size, text, and material, returning metadata about the shaped text.
-func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []paintedRune) (layout.Dimensions, TextInfo) {
+func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []BrushedRune) (layout.Dimensions, TextInfo) {
 	cs := gtx.Constraints
 	textSize := fixed.I(gtx.Sp(size))
 	lineHeight := fixed.I(gtx.Sp(l.LineHeight))
 	var str strings.Builder
 	for _, pr := range txt {
-		str.WriteRune(pr.r)
+		str.WriteRune(pr.R)
 	}
 	lt.LayoutString(text.Parameters{
 		Font:            font,
@@ -219,6 +220,45 @@ func fixedToFloat(i fixed.Int26_6) float32 {
 	return float32(i) / 64.0
 }
 
+func shouldBlinkInvert() bool {
+	currentTime := time.Now()
+	return (currentTime.UnixNano()/int64(time.Millisecond)/500)%2 == 0
+}
+
+func toPaintedGlyph(g text.Glyph, br BrushedRune) paintedGlyph {
+	defaultGlyph := paintedGlyph{
+		r:  br.R,
+		g:  g,
+		fg: defaultFG,
+		bg: defaultBG,
+	}
+
+	if br.Brush.FG.A != 0 {
+		defaultGlyph.fg = br.Brush.FG
+	}
+	if br.Brush.BG.A != 0 {
+		defaultGlyph.bg = br.Brush.BG
+	}
+
+	if br.Brush.bold {
+		defaultGlyph.bg = color.NRGBA{A: 255, R: 0, G: 0, B: 0}
+	}
+
+	if br.Brush.invert {
+		fg := defaultGlyph.fg
+		defaultGlyph.fg = defaultGlyph.bg
+		defaultGlyph.bg = fg
+	}
+
+	if br.Brush.blink && shouldBlinkInvert() {
+		fg := defaultGlyph.fg
+		defaultGlyph.fg = defaultGlyph.bg
+		defaultGlyph.bg = fg
+	}
+
+	return defaultGlyph
+}
+
 // paintGlyph buffers up and paints text glyphs. It should be invoked iteratively upon each glyph
 // until it returns false. The line parameter should be a slice with
 // a backing array of sufficient size to buffer multiple glyphs.
@@ -226,13 +266,14 @@ func fixedToFloat(i fixed.Int26_6) float32 {
 // expected to be passed back in on the following invocation.
 // This design is awkward, but prevents the line slice from escaping
 // to the heap.
-func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, pr paintedRune) ([]paintedGlyph, bool) {
+func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, pr BrushedRune) ([]paintedGlyph, bool) {
 	_, visibleOrBefore := it.processGlyph(glyph, true)
 	if it.visible {
 		if len(line) == 0 {
 			it.lineOff = f32.Point{X: fixedToFloat(glyph.X), Y: float32(glyph.Y)}.Sub(layout.FPt(it.viewport.Min))
 		}
-		line = append(line, paintedGlyph{g: glyph, fg: pr.fg, bg: pr.bg, r: pr.r})
+
+		line = append(line, toPaintedGlyph(glyph, pr))
 	}
 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)

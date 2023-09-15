@@ -4,21 +4,23 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
-	"time"
 )
 
 type Cursor struct {
 	X, Y int
 }
 
-var (
-	defaultFG = color.NRGBA{A: 0xff, R: 0xeb, G: 0xdb, B: 0xb2}
-	defaultBG = color.NRGBA{A: 0xff, R: 0x28, G: 0x28, B: 0x28}
-)
+type Brush struct {
+	FG     color.NRGBA
+	BG     color.NRGBA
+	blink  bool
+	invert bool
+	bold   bool
+}
 
-type brush struct {
-	fg color.NRGBA
-	bg color.NRGBA
+type BrushedRune struct {
+	R     rune
+	Brush Brush
 }
 
 type bufferType int
@@ -29,8 +31,8 @@ const (
 )
 
 type Buffer struct {
-	lines          [][]paintedRune
-	alternateLines [][]paintedRune
+	lines          [][]BrushedRune
+	alternateLines [][]BrushedRune
 	bufferType     bufferType
 	size           BufferSize
 	cursor         Cursor
@@ -50,7 +52,7 @@ type Buffer struct {
 	// true - the origin is at the upper-left character position within the margins. Line and column numbers are therefore relative to the current margin settings. The cursor is not allowed to be positioned outside the margins.
 	// described in https://vt100.net/docs/vt100-ug/chapter3.html
 	originMode bool
-	brush
+	brush      Brush
 }
 
 type BufferSize struct {
@@ -88,12 +90,21 @@ func (b *Buffer) ScrollUp(n int) {
 	}
 }
 
+// TODO maybe remove in favour of SetBrush(Brush{})
 func (b *Buffer) ResetBrush() {
-	b.brush = brush{fg: defaultFG, bg: defaultBG}
+	b.brush = Brush{}
 }
 
-func (b *Buffer) newLine(cols int) []paintedRune {
-	line := make([]paintedRune, cols)
+func (b *Buffer) Brush() Brush {
+	return b.brush
+}
+
+func (b *Buffer) SetBrush(br Brush) {
+	b.brush = br
+}
+
+func (b *Buffer) newLine(cols int) []BrushedRune {
+	line := make([]BrushedRune, cols)
 	for c := range line {
 		line[c] = b.MakeRune(' ')
 	}
@@ -112,11 +123,10 @@ func (b *Buffer) resetScrollArea() {
 
 }
 
-func (b *Buffer) MakeRune(r rune) paintedRune {
-	return paintedRune{
-		r:  r,
-		fg: b.brush.fg,
-		bg: b.brush.bg,
+func (b *Buffer) MakeRune(r rune) BrushedRune {
+	return BrushedRune{
+		R:     r,
+		Brush: b.brush,
 	}
 }
 
@@ -134,23 +144,22 @@ func (b *Buffer) WriteRune(r rune) {
 	}
 }
 
-func (b *Buffer) Runes() []paintedRune {
-	out := make([]paintedRune, 0, b.size.rows*b.size.cols) // extra space for new lines
+func (b *Buffer) Runes() []BrushedRune {
+	out := make([]BrushedRune, 0, b.size.rows*b.size.cols) // extra space for new lines
 	for ri, r := range b.lines {
 		for ci, c := range r {
 			// invert cursor every odd interval
-			if (b.cursor.X == ci) && b.cursor.Y == ri && shouldInvertCursor() {
-				out = append(out, paintedRune{
-					r:  c.r,
-					fg: c.bg,
-					bg: c.fg,
+			if (b.cursor.X == ci) && b.cursor.Y == ri {
+				br := c.Brush
+				br.blink = true
+				out = append(out, BrushedRune{
+					R:     c.R,
+					Brush: br,
 				})
 			} else {
 				out = append(out, c)
 			}
 		}
-		// FIXME: why do I need the new lines here?
-		out = append(out, b.MakeRune('\n'))
 	}
 
 	return out
@@ -165,7 +174,7 @@ func (b *Buffer) String() string {
 	var sb strings.Builder
 	for _, r := range b.lines {
 		for _, c := range r {
-			sb.WriteRune(c.r)
+			sb.WriteRune(c.R)
 		}
 		sb.WriteRune('\n')
 	}
@@ -205,17 +214,12 @@ func (b *Buffer) Tab() {
 	}
 }
 
-func (b *Buffer) makeNewLines(size BufferSize) [][]paintedRune {
-	newLines := make([][]paintedRune, size.rows)
+func (b *Buffer) makeNewLines(size BufferSize) [][]BrushedRune {
+	newLines := make([][]BrushedRune, size.rows)
 	for r := range newLines {
 		newLines[r] = b.newLine(size.cols)
 	}
 	return newLines
-}
-
-func shouldInvertCursor() bool {
-	currentTime := time.Now()
-	return (currentTime.UnixNano()/int64(time.Millisecond)/500)%2 == 0
 }
 
 // Resize changes ensures that the dimensions are rows x cols

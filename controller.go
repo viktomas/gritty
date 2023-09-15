@@ -66,7 +66,7 @@ func (c *Controller) KeyPressed(name string, mod key.Modifiers) {
 	}
 }
 
-func (c *Controller) Runes() []paintedRune {
+func (c *Controller) Runes() []BrushedRune {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.buffer.Runes()

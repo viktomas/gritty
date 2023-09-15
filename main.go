@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"log"
 	"os"
 	"strings"
@@ -138,8 +137,8 @@ func loop(w *app.Window) error {
 	}
 }
 
-func generateTestContent(rows, cols int) []paintedRune {
-	var screen []paintedRune
+func generateTestContent(rows, cols int) []BrushedRune {
+	var screen []BrushedRune
 	for r := 0; r < rows; r++ {
 		ch := fmt.Sprintf("%d", r)
 		for c := 0; c < cols; c++ {
@@ -147,22 +146,26 @@ func generateTestContent(rows, cols int) []paintedRune {
 			if c%4 == 0 {
 				r = ' '
 			}
-			pr := paintedRune{
-				r:  r,
-				fg: color.NRGBA{A: 255},
-				bg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
+			br := BrushedRune{
+				R: r,
 			}
 			if c == 0 {
-				pr = paintedRune{
-					r:  pr.r,
-					fg: color.NRGBA{A: 255, R: 255, G: 255, B: 255},
-					bg: color.NRGBA{A: 255, R: 255},
+				br = BrushedRune{
+					R: br.R,
+					Brush: Brush{
+						invert: true,
+					},
 				}
 			}
 			if c == cols-2 {
-				pr = paintedRune{r: pr.r, fg: pr.bg, bg: pr.fg}
+				br = BrushedRune{
+					R: br.R,
+					Brush: Brush{
+						bold: true,
+					},
+				}
 			}
-			screen = append(screen, pr)
+			screen = append(screen, br)
 		}
 	}
 	return screen
