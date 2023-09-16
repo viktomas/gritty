@@ -21,17 +21,17 @@ func keyToBytes(name string, mod key.Modifiers) []byte {
 	case key.NameSpace:
 		return []byte(" ")
 	case key.NameEscape:
-		return []byte{0x1B}
+		return []byte{asciiESC}
 	case key.NameTab:
-		return []byte{0x09}
+		return []byte{asciiHT}
 	case key.NameUpArrow:
-		return []byte{0x1b, '[', 'A'}
+		return []byte("\x1b[A")
 	case key.NameDownArrow:
-		return []byte{0x1b, '[', 'B'}
+		return []byte("\x1b[B")
 	case key.NameRightArrow:
-		return []byte{0x1b, '[', 'C'}
+		return []byte("\x1b[C")
 	case key.NameLeftArrow:
-		return []byte{0x1b, '[', 'D'}
+		return []byte("\x1b[D")
 	default:
 		// For normal characters, pass them through.
 		var character string
