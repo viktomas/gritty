@@ -18,7 +18,6 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget/material"
 	"github.com/viktomas/gritty/buffer"
 	"golang.org/x/image/math/fixed"
 )
@@ -45,8 +44,7 @@ func main() {
 
 func loop(w *app.Window) error {
 
-	th := material.NewTheme()
-	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	shaper := text.NewShaper(text.WithCollection(gofont.Collection()))
 
 	var ops op.Ops
 	defaultShell := "/bin/sh"
@@ -56,13 +54,14 @@ func loop(w *app.Window) error {
 	controller := &Controller{}
 
 	var windowSize image.Point
-	ticker := time.NewTicker(500 * time.Millisecond)
+
+	cursorBlinkTicker := time.NewTicker(500 * time.Millisecond)
 
 	for {
 		select {
 		case <-controller.done:
 			return nil
-		case <-ticker.C:
+		case <-cursorBlinkTicker.C:
 			w.Invalidate()
 		case e := <-w.Events():
 			switch e := e.(type) {
@@ -72,7 +71,7 @@ func loop(w *app.Window) error {
 				gtx := layout.NewContext(&ops, e)
 				if e.Size != windowSize {
 					windowSize = e.Size // make sure this code doesn't run until we resized again
-					bufferSize := getBufferSize(gtx, fontSize, e.Size, th)
+					bufferSize := getBufferSize(gtx, fontSize, e.Size, shaper)
 					if !controller.Started() {
 
 						var err error
@@ -115,7 +114,7 @@ func loop(w *app.Window) error {
 							},
 							PxPerEm: fixed.I(gtx.Sp(fontSize)),
 						}
-						th.Shaper.LayoutString(params, "Hello")
+						shaper.LayoutString(params, "Hello")
 						l := Label{
 							// we don't put new lines at the end of the line
 							// so we need the layout mechanism to use a policy
@@ -126,7 +125,7 @@ func loop(w *app.Window) error {
 							Typeface: font.Typeface(monoTypeface),
 						}
 
-						return l.Layout(gtx, th.Shaper, font, fontSize, controller.Runes())
+						return l.Layout(gtx, shaper, font, fontSize, controller.Runes())
 						// screenSize := getScreenSize(gtx, fontSize, e.Size, th)
 						// return l.Layout(gtx, th.Shaper, font, fontSize, generateTestContent(screenSize.rows, screenSize.cols))
 					}),
@@ -177,15 +176,15 @@ func div(a, b fixed.Int26_6) fixed.Int26_6 {
 	return (a * (1 << 6)) / b
 }
 
-func getBufferSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) buffer.BufferSize {
+func getBufferSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, sh *text.Shaper) buffer.BufferSize {
 	params := text.Parameters{
 		Font: font.Font{
 			Typeface: font.Typeface(monoTypeface),
 		},
 		PxPerEm: fixed.I(gtx.Sp(fontSize)),
 	}
-	th.Shaper.Layout(params, strings.NewReader("A"))
-	g, ok := th.Shaper.NextGlyph()
+	sh.Layout(params, strings.NewReader("A"))
+	g, ok := sh.NextGlyph()
 	if !ok {
 		log.Println("ok is false for the next glyph")
 	}
