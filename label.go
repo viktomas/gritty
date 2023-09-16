@@ -27,8 +27,10 @@ var (
 	defaultBG = color.NRGBA{A: 0xff, R: 0x28, G: 0x28, B: 0x28}
 )
 
-// Label is a widget for laying out and drawing text. Labels are always
-// non-interactive text. They cannot be selected or copied.
+// Label is a widget code copied from https://git.sr.ht/~eliasnaur/gio/tree/313c488ec356872a14dab0c0ac0fd73b45a596cf/item/widget/label.go
+// and changed so it can render grid of characters. Each character can have
+// different background and foreground colors and a few other attributes
+// see (buffer.BrushedRune)
 type Label struct {
 	// Alignment specifies the text alignment.
 	Alignment text.Alignment
@@ -226,6 +228,8 @@ func shouldBlinkInvert() bool {
 	return (currentTime.UnixNano()/int64(time.Millisecond)/500)%2 == 0
 }
 
+// toPaintedGlyph transfers GUI-agnostic BrushedRune into a specific way
+// we render the characters in Gio
 func toPaintedGlyph(g text.Glyph, br buffer.BrushedRune) paintedGlyph {
 	defaultGlyph := paintedGlyph{
 		r:  br.R,
@@ -267,40 +271,53 @@ func toPaintedGlyph(g text.Glyph, br buffer.BrushedRune) paintedGlyph {
 // expected to be passed back in on the following invocation.
 // This design is awkward, but prevents the line slice from escaping
 // to the heap.
-func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, pr buffer.BrushedRune) ([]paintedGlyph, bool) {
+//
+// this function has been heavily modified from the original in
+// https://git.sr.ht/~eliasnaur/gio/tree/313c488ec356872a14dab0c0ac0fd73b45a596cf/item/widget/label.go
+// to render grid of characters where each character can have a different color
+func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, br buffer.BrushedRune) ([]paintedGlyph, bool) {
 	_, visibleOrBefore := it.processGlyph(glyph, true)
 	if it.visible {
 		if len(line) == 0 {
 			it.lineOff = f32.Point{X: fixedToFloat(glyph.X), Y: float32(glyph.Y)}.Sub(layout.FPt(it.viewport.Min))
 		}
 
-		line = append(line, toPaintedGlyph(glyph, pr))
+		// we processed the glyph and now we take parameters from the brushed rune
+		// these parameters are then used in the next step (after we processed the whole line)
+		line = append(line, toPaintedGlyph(glyph, br))
 	}
+	// this section gets executed only at the end, after we filled our line with glyphs
+	// by repeatedly calling the it.ProcessGlyph
 	if glyph.Flags&text.FlagLineBreak != 0 || cap(line)-len(line) == 0 || !visibleOrBefore {
 		t := op.Affine(f32.Affine2D{}.Offset(it.lineOff)).Push(gtx.Ops)
 		var glyphLine []text.Glyph
-		for _, l := range line {
+		for _, pg := range line {
 			// minX is where the glyph character starts
 			// thanks to setting an offset, the rectangle and the glyph can be drawn from X: 0
-			minX := l.g.X.Floor() - it.lineOff.Round().X
+			minX := pg.g.X.Floor() - it.lineOff.Round().X
 			glyphOffset := op.Affine(f32.Affine2D{}.Offset(f32.Point{X: float32(minX)})).Push(gtx.Ops)
+
+			// draw background
 			rect := clip.Rect{
 				Min: image.Point{X: 0, Y: 0 - glyph.Ascent.Ceil()},
-				Max: image.Point{X: l.g.X.Floor() + l.g.Advance.Ceil() - it.lineOff.Round().X, Y: 0 + glyph.Descent.Ceil()},
+				Max: image.Point{X: pg.g.X.Floor() + pg.g.Advance.Ceil() - it.lineOff.Round().X, Y: 0 + glyph.Descent.Ceil()},
 			}
 			paint.FillShape(
 				gtx.Ops,
-				l.bg,
+				pg.bg,
 				rect.Op(),
 			)
-			path := shaper.Shape([]text.Glyph{l.g})
+
+			// draw glyph
+			path := shaper.Shape([]text.Glyph{pg.g})
 			outline := clip.Outline{Path: path}.Op().Push(gtx.Ops)
-			paint.ColorOp{Color: l.fg}.Add(gtx.Ops)
+			paint.ColorOp{Color: pg.fg}.Add(gtx.Ops)
 			paint.PaintOp{}.Add(gtx.Ops)
 			outline.Pop()
 			if call := shaper.Bitmaps(glyphLine); call != (op.CallOp{}) {
 				call.Add(gtx.Ops)
 			}
+
 			glyphOffset.Pop()
 		}
 		t.Pop()
