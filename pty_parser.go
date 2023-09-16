@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-type decoder struct {
-	state        decoderState
+type parser struct {
+	state        parserState
 	privateFlag  int
 	buf          []byte
 	intermediate []byte
@@ -64,10 +64,10 @@ const (
 	iosc
 )
 
-type decoderState int
+type parserState int
 
 const (
-	sGround decoderState = iota
+	sGround parserState = iota
 	sEscape
 	sEscapeIntermediate
 	sCSIEntry
@@ -77,31 +77,31 @@ const (
 	sOSC
 )
 
-func NewDecoder() *decoder {
-	return &decoder{
+func NewParser() *parser {
+	return &parser{
 		state: sGround, // technically, this is not necessary because the sGround is 0
 	}
 }
 
-func (d *decoder) pExecute(b byte) operation {
+func (d *parser) pExecute(b byte) operation {
 	logDebug("Executing: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
 	return operation{t: iexecute, r: rune(b)}
 }
 
-func (d *decoder) pPrint(b byte) operation {
+func (d *parser) pPrint(b byte) operation {
 	logDebug("Printing: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
 	return operation{t: iprint, r: rune(b)}
 }
 
-func (d *decoder) escDispatch(b byte) operation {
+func (d *parser) escDispatch(b byte) operation {
 	logDebug("ESC: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
 	return operation{t: iesc, r: rune(b), intermediate: string(d.intermediate)}
 }
 
-func (d *decoder) csiDispatch(b byte) operation {
+func (d *parser) csiDispatch(b byte) operation {
 	logDebug("CSI: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
 	var params []int
@@ -119,23 +119,23 @@ func (d *decoder) csiDispatch(b byte) operation {
 	return operation{t: icsi, r: rune(b), params: params, intermediate: string(d.intermediate)}
 }
 
-func (d *decoder) oscDispatch() operation {
+func (d *parser) oscDispatch() operation {
 	logDebug("OSC: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
 	return operation{t: iosc, osc: string(d.osc)}
 }
 
-func (d *decoder) clear() {
+func (d *parser) clear() {
 	d.privateFlag = 0
 	d.intermediate = nil
 	d.params = nil
 }
 
-func (d *decoder) collect(b byte) {
+func (d *parser) collect(b byte) {
 	d.intermediate = append(d.intermediate, b)
 }
 
-func (d *decoder) param(b byte) {
+func (d *parser) param(b byte) {
 	d.params = append(d.params, b)
 }
 
@@ -159,7 +159,7 @@ func isControlChar(b byte) bool {
 	return btw(b, 0x00, 0x17) || b == 0x19 || btw(b, 0x1c, 0x1f)
 }
 
-func (d *decoder) Parse(p []byte) []operation {
+func (d *parser) Parse(p []byte) []operation {
 	var result []operation
 	for i := 0; i < len(p); i++ {
 		b := p[i]

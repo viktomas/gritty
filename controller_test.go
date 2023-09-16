@@ -11,7 +11,7 @@ func FuzzController(f *testing.F) {
 	f.Add([]byte("\x1b[2r\x1b[A\x8d0"))
 	f.Fuzz(func(t *testing.T, in []byte) {
 		c := &Controller{buffer: buffer.New(10, 10)}
-		ops := NewDecoder().Parse(in)
+		ops := NewParser().Parse(in)
 		for _, op := range ops {
 			c.handleOp(op)
 		}

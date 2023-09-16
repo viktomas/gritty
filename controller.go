@@ -125,7 +125,7 @@ func (c *Controller) handleOp(op operation) {
 func processPTY(ptmx *os.File) <-chan operation {
 	out := make(chan operation)
 	buf := make([]byte, 1024)
-	decoder := NewDecoder()
+	parser := NewParser()
 	go func() {
 		defer func() {
 			close(out)
@@ -140,7 +140,7 @@ func processPTY(ptmx *os.File) <-chan operation {
 				}
 				return
 			}
-			for _, op := range decoder.Parse(buf[:n]) {
+			for _, op := range parser.Parse(buf[:n]) {
 				out <- op
 			}
 		}

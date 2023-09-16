@@ -10,7 +10,7 @@ func TestParse(t *testing.T) {
 	t.Run("it parses control characters", func(t *testing.T) {
 		for i := byte(0x00); i < 0x20; i++ {
 			if i <= 0x17 || i == 0x19 || (i >= 0x1c && i <= 0x1f) {
-				instructions := NewDecoder().Parse([]byte{i})
+				instructions := NewParser().Parse([]byte{i})
 				if len(instructions) != 1 {
 					t.Fatalf("The parser should have returned 1 instruction but returned %d for byte 0x%x", len(instructions), i)
 				}
@@ -58,7 +58,7 @@ func TestParseCSI(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.desc, func(t *testing.T) {
 				input := []byte(fmt.Sprintf("\x1b[%[1]c\x1b[39%[1]c", tc.input))
-				instructions := NewDecoder().Parse(input)
+				instructions := NewParser().Parse(input)
 				if len(instructions) != 2 {
 					t.Fatalf("The parser should have returned 2 instruction but returned %d for byte %v", len(instructions), input)
 				}
@@ -74,7 +74,7 @@ func TestParseCSI(t *testing.T) {
 	})
 
 	t.Run("parse private sequences", func(t *testing.T) {
-		instructions := NewDecoder().Parse([]byte{asciiESC, '[', '?', '1', '0', '4', '9', 'h'})
+		instructions := NewParser().Parse([]byte{asciiESC, '[', '?', '1', '0', '4', '9', 'h'})
 		compInst(
 			t,
 			operation{t: icsi, r: 'h', intermediate: "?", params: []int{1049}},
@@ -96,7 +96,7 @@ func TestParseCSI(t *testing.T) {
 		}
 
 		for _, test := range tests {
-			output := NewDecoder().Parse(test.input) // Assuming `parse` is your parsing function
+			output := NewParser().Parse(test.input) // Assuming `parse` is your parsing function
 			if !reflect.DeepEqual(test.expected, output[0]) {
 				t.Fatalf("parsed as %v, but should have been %v", output[0], test.expected)
 			}
@@ -104,7 +104,7 @@ func TestParseCSI(t *testing.T) {
 	})
 
 	t.Run("goes to ground from CSI entry", func(t *testing.T) {
-		output := NewDecoder().Parse([]byte{0x1b, 0x5b, 0x4b, 0x61})
+		output := NewParser().Parse([]byte{0x1b, 0x5b, 0x4b, 0x61})
 		if len(output) != 2 {
 			t.Fatalf("the input should have been parsed into 2 operations")
 		}
