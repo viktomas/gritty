@@ -69,9 +69,6 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 	case 'A':
 		dy := op.param(0, 1)
 		b.MoveCursorRelative(0, -dy)
-		// FIXME fix bug in https://github.com/asciinema/avt/blob/main/src/vt.rs#L548C37-L548C37, where it is implemented as up, but should be down based on
-		// - http://xtermjs.org/docs/api/vtfeatures/
-		// - https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 	case 'e':
 		fallthrough
 	// CUD - Cursor down
