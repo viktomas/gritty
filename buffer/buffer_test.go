@@ -55,6 +55,55 @@ func TestClearLines(t *testing.T) {
 			t.Fatalf("Buffer wasn't cleared successfully\nExpected:\n%s\nGot:\n%s", expected, b.String())
 		}
 	})
+
+	t.Run("partial clear", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a___
+		_b__
+		__c_
+		___d
+		`, 0, 0)
+		expected := trimExpectation(t, `
+		a___
+		____
+		____
+		___d
+		`)
+		b.ClearLines(1, 3)
+		if b.String() != expected {
+			t.Fatalf("Buffer wasn't cleared successfully\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("clear with range too large", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a_
+		_b
+		`, 0, 0)
+		expected := trimExpectation(t, `
+		__
+		__
+		`)
+		b.ClearLines(-11, 33)
+		if b.String() != expected {
+			t.Fatalf("Buffer wasn't cleared successfully\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("clear with range too small", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a_
+		_b
+		`, 0, 0)
+		expected := trimExpectation(t, `
+		a_
+		_b
+		`)
+		b.ClearLines(4, 3)
+		if b.String() != expected {
+			t.Fatalf("Buffer wasn't cleared successfully\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
 }
 
 func TestScrollUp(t *testing.T) {
@@ -72,6 +121,7 @@ func TestScrollUp(t *testing.T) {
 			t.Fatalf("Buffer didn't scroll up\nExpected:\n%s\nGot:\n%s", expected, b.String())
 		}
 	})
+
 	t.Run("with margins", func(t *testing.T) {
 		b := makeTestBuffer(t, `
 		a
