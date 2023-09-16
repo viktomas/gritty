@@ -106,6 +106,51 @@ func TestClearLines(t *testing.T) {
 	})
 }
 
+func TestClearCurrentLine(t *testing.T) {
+	t.Run("clears full line", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a___
+		_b__
+		__c_
+		___d
+		`, 0, 1)
+		expected := trimExpectation(t, `
+		a___
+		____
+		__c_
+		___d
+		`)
+		b.ClearCurrentLine(0, b.Size().Cols)
+		if b.String() != expected {
+			t.Fatalf("Line was not fully cleared:\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+	t.Run("clears part of the line", func(t *testing.T) {
+		b := makeTestBuffer(t, `12345`, 0, 0)
+		expected := trimExpectation(t, `1___5`)
+		b.ClearCurrentLine(1, 4)
+		if b.String() != expected {
+			t.Fatalf("Line was not cleared from 2 to 4:\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+	t.Run("handles range out of bounds", func(t *testing.T) {
+		b := makeTestBuffer(t, `12345`, 0, 0)
+		expected := trimExpectation(t, `_____`)
+		b.ClearCurrentLine(-10, 33)
+		if b.String() != expected {
+			t.Fatalf("Line was not fully cleared:\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+	t.Run("handles too small range", func(t *testing.T) {
+		b := makeTestBuffer(t, `12345`, 0, 0)
+		expected := trimExpectation(t, `12345`)
+		b.ClearCurrentLine(4, 3)
+		if b.String() != expected {
+			t.Fatalf("Line was changed but it shouldn't have:\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+}
+
 func TestScrollUp(t *testing.T) {
 	t.Run("without margins", func(t *testing.T) {
 		b := makeTestBuffer(t, `

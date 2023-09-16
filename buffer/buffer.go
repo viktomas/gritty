@@ -200,7 +200,7 @@ func (b *Buffer) ClearLines(start, end int) {
 func (b *Buffer) ClearCurrentLine(start, end int) {
 	// sanitize parameters
 	s := clamp(start, 0, b.size.Cols)
-	e := clamp(end, 0, b.size.Cols)
+	e := clamp(end, s, b.size.Cols)
 
 	currentLineToClean := b.lines[b.cursor.Y][s:e]
 	for i := range currentLineToClean {
