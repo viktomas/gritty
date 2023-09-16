@@ -17,6 +17,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"github.com/viktomas/gritty/buffer"
 
 	"golang.org/x/image/math/fixed"
 )
@@ -53,7 +54,7 @@ type paintedGlyph struct {
 }
 
 // Layout the label with the given shaper, font, size, text, and material.
-func (l Label) Layout(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []BrushedRune) layout.Dimensions {
+func (l Label) Layout(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []buffer.BrushedRune) layout.Dimensions {
 	dims, _ := l.LayoutDetailed(gtx, lt, font, size, txt)
 	return dims
 }
@@ -66,7 +67,7 @@ type TextInfo struct {
 }
 
 // Layout the label with the given shaper, font, size, text, and material, returning metadata about the shaped text.
-func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []BrushedRune) (layout.Dimensions, TextInfo) {
+func (l Label) LayoutDetailed(gtx layout.Context, lt *text.Shaper, font font.Font, size unit.Sp, txt []buffer.BrushedRune) (layout.Dimensions, TextInfo) {
 	cs := gtx.Constraints
 	textSize := fixed.I(gtx.Sp(size))
 	lineHeight := fixed.I(gtx.Sp(l.LineHeight))
@@ -225,7 +226,7 @@ func shouldBlinkInvert() bool {
 	return (currentTime.UnixNano()/int64(time.Millisecond)/500)%2 == 0
 }
 
-func toPaintedGlyph(g text.Glyph, br BrushedRune) paintedGlyph {
+func toPaintedGlyph(g text.Glyph, br buffer.BrushedRune) paintedGlyph {
 	defaultGlyph := paintedGlyph{
 		r:  br.R,
 		g:  g,
@@ -240,17 +241,17 @@ func toPaintedGlyph(g text.Glyph, br BrushedRune) paintedGlyph {
 		defaultGlyph.bg = br.Brush.BG
 	}
 
-	if br.Brush.bold {
+	if br.Brush.Bold {
 		defaultGlyph.bg = color.NRGBA{A: 255, R: 0, G: 0, B: 0}
 	}
 
-	if br.Brush.invert {
+	if br.Brush.Invert {
 		fg := defaultGlyph.fg
 		defaultGlyph.fg = defaultGlyph.bg
 		defaultGlyph.bg = fg
 	}
 
-	if br.Brush.blink && shouldBlinkInvert() {
+	if br.Brush.Blink && shouldBlinkInvert() {
 		fg := defaultGlyph.fg
 		defaultGlyph.fg = defaultGlyph.bg
 		defaultGlyph.bg = fg
@@ -266,7 +267,7 @@ func toPaintedGlyph(g text.Glyph, br BrushedRune) paintedGlyph {
 // expected to be passed back in on the following invocation.
 // This design is awkward, but prevents the line slice from escaping
 // to the heap.
-func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, pr BrushedRune) ([]paintedGlyph, bool) {
+func (it *textIterator) paintGlyph(gtx layout.Context, shaper *text.Shaper, glyph text.Glyph, line []paintedGlyph, pr buffer.BrushedRune) ([]paintedGlyph, bool) {
 	_, visibleOrBefore := it.processGlyph(glyph, true)
 	if it.visible {
 		if len(line) == 0 {

@@ -1,4 +1,4 @@
-package main
+package buffer
 
 import (
 	"fmt"
@@ -24,14 +24,14 @@ func TestMakeTestBuffer(t *testing.T) {
 }
 
 func TestNewBuffer(t *testing.T) {
-	s := NewBuffer(5, 2)
+	s := New(5, 2)
 	if s.String() != "     \n     \n" {
 		t.Fatalf("the buffer string is not equal to empty buffer 5x2:\n%q", s.String())
 	}
 }
 
 func FuzzWriteRune(f *testing.F) {
-	b := NewBuffer(20, 10)
+	b := New(20, 10)
 	f.Add('A')
 	f.Fuzz(func(t *testing.T, r rune) {
 		b.WriteRune(r)
@@ -50,7 +50,7 @@ func TestClearLines(t *testing.T) {
 		___
 		___
 		`)
-		b.ClearLines(0, b.size.rows)
+		b.ClearLines(0, b.size.Rows)
 		if b.String() != expected {
 			t.Fatalf("Buffer wasn't cleared successfully\nExpected:\n%s\nGot:\n%s", expected, b.String())
 		}
@@ -97,7 +97,7 @@ func TestScrollUp(t *testing.T) {
 
 func TestSetScrollArea(t *testing.T) {
 	t.Run("sets scroll area within the buffer", func(t *testing.T) {
-		b := NewBuffer(2, 5)
+		b := New(2, 5)
 		b.WriteRune('a')
 		b.SetScrollArea(1, 3)
 
@@ -132,7 +132,7 @@ func TestSetScrollArea(t *testing.T) {
 
 func TestWriteRune(t *testing.T) {
 	t.Run("auto wraps", func(t *testing.T) {
-		b := NewBuffer(2, 2)
+		b := New(2, 2)
 		b.WriteRune('a')
 		b.WriteRune('a')
 		b.WriteRune('a')
@@ -142,7 +142,7 @@ func TestWriteRune(t *testing.T) {
 	})
 
 	t.Run("wraps only with next write (doesn't wrap when EOL is reached)", func(t *testing.T) {
-		b := NewBuffer(2, 2)
+		b := New(2, 2)
 		b.WriteRune('a')
 		b.WriteRune('a')
 		b.WriteRune('a')
@@ -217,7 +217,7 @@ func makeTestBuffer(t testing.TB, content string, x, y int) *Buffer {
 			t.Fatal("test buffer has lines with different length")
 		}
 	}
-	b := NewBuffer(len(trimmedRows[0]), len(trimmedRows))
+	b := New(len(trimmedRows[0]), len(trimmedRows))
 	for _, r := range trimmedRows {
 		for _, c := range r {
 			if c == '_' {

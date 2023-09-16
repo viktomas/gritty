@@ -19,6 +19,7 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
+	"github.com/viktomas/gritty/buffer"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -71,11 +72,11 @@ func loop(w *app.Window) error {
 				gtx := layout.NewContext(&ops, e)
 				if e.Size != windowSize {
 					windowSize = e.Size // make sure this code doesn't run until we resized again
-					screenSize := getScreenSize(gtx, fontSize, e.Size, th)
+					bufferSize := getBufferSize(gtx, fontSize, e.Size, th)
 					if !controller.Started() {
 
 						var err error
-						err = controller.Start(defaultShell, screenSize.cols, screenSize.rows)
+						err = controller.Start(defaultShell, bufferSize.Cols, bufferSize.Rows)
 						if err != nil {
 							log.Fatalf("can't initialize PTY controller %v", err)
 						}
@@ -85,7 +86,7 @@ func loop(w *app.Window) error {
 							}
 						}()
 					} else {
-						controller.Resize(screenSize.cols, screenSize.rows)
+						controller.Resize(bufferSize.Cols, bufferSize.Rows)
 					}
 				}
 				// keep the focus, since only one thing can
@@ -137,8 +138,8 @@ func loop(w *app.Window) error {
 	}
 }
 
-func generateTestContent(rows, cols int) []BrushedRune {
-	var screen []BrushedRune
+func generateTestContent(rows, cols int) []buffer.BrushedRune {
+	var screen []buffer.BrushedRune
 	for r := 0; r < rows; r++ {
 		ch := fmt.Sprintf("%d", r)
 		for c := 0; c < cols; c++ {
@@ -146,22 +147,22 @@ func generateTestContent(rows, cols int) []BrushedRune {
 			if c%4 == 0 {
 				r = ' '
 			}
-			br := BrushedRune{
+			br := buffer.BrushedRune{
 				R: r,
 			}
 			if c == 0 {
-				br = BrushedRune{
+				br = buffer.BrushedRune{
 					R: br.R,
-					Brush: Brush{
-						invert: true,
+					Brush: buffer.Brush{
+						Invert: true,
 					},
 				}
 			}
 			if c == cols-2 {
-				br = BrushedRune{
+				br = buffer.BrushedRune{
 					R: br.R,
-					Brush: Brush{
-						bold: true,
+					Brush: buffer.Brush{
+						Bold: true,
 					},
 				}
 			}
@@ -176,7 +177,7 @@ func div(a, b fixed.Int26_6) fixed.Int26_6 {
 	return (a * (1 << 6)) / b
 }
 
-func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) BufferSize {
+func getBufferSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point, th *material.Theme) buffer.BufferSize {
 	params := text.Parameters{
 		Font: font.Font{
 			Typeface: font.Typeface(monoTypeface),
@@ -192,5 +193,5 @@ func getScreenSize(gtx layout.Context, textSize unit.Sp, windowSize image.Point,
 	glyphHeight := g.Ascent + g.Descent + 1<<6 // TODO find out why the line height is higher than the glyph
 	cols := div(fixed.I(windowSize.X), glyphWidth).Floor()
 	rows := div(fixed.I(windowSize.Y), glyphHeight).Floor()
-	return BufferSize{rows: rows, cols: cols}
+	return buffer.BufferSize{Rows: rows, Cols: cols}
 }

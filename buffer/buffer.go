@@ -1,4 +1,4 @@
-package main
+package buffer
 
 import (
 	"fmt"
@@ -13,9 +13,9 @@ type Cursor struct {
 type Brush struct {
 	FG     color.NRGBA
 	BG     color.NRGBA
-	blink  bool
-	invert bool
-	bold   bool
+	Blink  bool
+	Invert bool
+	Bold   bool
 }
 
 type BrushedRune struct {
@@ -56,12 +56,12 @@ type Buffer struct {
 }
 
 type BufferSize struct {
-	rows int
-	cols int
+	Rows int
+	Cols int
 }
 
-func NewBuffer(cols, rows int) *Buffer {
-	size := BufferSize{rows: rows, cols: cols}
+func New(cols, rows int) *Buffer {
+	size := BufferSize{Rows: rows, Cols: cols}
 	buffer := &Buffer{size: size}
 	buffer.ResetBrush()
 	buffer.lines = buffer.makeNewLines(size)
@@ -86,7 +86,7 @@ func (b *Buffer) ScrollUp(n int) {
 		b.lines[i-n] = b.lines[i]
 	}
 	for i := b.scrollAreaEnd - n; i < b.scrollAreaEnd; i++ {
-		b.lines[i] = b.newLine(b.size.cols)
+		b.lines[i] = b.newLine(b.size.Cols)
 	}
 }
 
@@ -112,8 +112,8 @@ func (b *Buffer) newLine(cols int) []BrushedRune {
 }
 
 func (b *Buffer) SetScrollArea(start, end int) {
-	b.scrollAreaStart = clamp(start, 0, b.size.rows-1)
-	b.scrollAreaEnd = clamp(end, b.scrollAreaStart+1, b.size.rows)
+	b.scrollAreaStart = clamp(start, 0, b.size.Rows-1)
+	b.scrollAreaEnd = clamp(end, b.scrollAreaStart+1, b.size.Rows)
 	b.cursor = Cursor{X: 0, Y: b.scrollAreaStart}
 }
 
@@ -139,19 +139,19 @@ func (b *Buffer) WriteRune(r rune) {
 	}
 	b.lines[b.cursor.Y][b.cursor.X] = b.MakeRune(r)
 	b.cursor.X++
-	if b.cursor.X >= b.size.cols {
+	if b.cursor.X >= b.size.Cols {
 		b.nextWriteWraps = true
 	}
 }
 
 func (b *Buffer) Runes() []BrushedRune {
-	out := make([]BrushedRune, 0, b.size.rows*b.size.cols) // extra space for new lines
+	out := make([]BrushedRune, 0, b.size.Rows*b.size.Cols) // extra space for new lines
 	for ri, r := range b.lines {
 		for ci, c := range r {
 			// invert cursor every odd interval
 			if (b.cursor.X == ci) && b.cursor.Y == ri {
 				br := c.Brush
-				br.blink = true
+				br.Blink = true
 				out = append(out, BrushedRune{
 					R:     c.R,
 					Brush: br,
@@ -167,7 +167,10 @@ func (b *Buffer) Runes() []BrushedRune {
 
 func (b *Buffer) Cursor() Cursor {
 	return b.cursor
+}
 
+func (b *Buffer) Size() BufferSize {
+	return b.size
 }
 
 func (b *Buffer) String() string {
@@ -183,8 +186,8 @@ func (b *Buffer) String() string {
 
 func (b *Buffer) ClearLines(start, end int) {
 	// sanitize parameters
-	s := clamp(start, 0, b.size.rows)
-	e := clamp(end, 0, b.size.rows)
+	s := clamp(start, 0, b.size.Rows)
+	e := clamp(end, 0, b.size.Rows)
 
 	toClean := b.lines[s:e]
 	for r := range toClean {
@@ -196,8 +199,8 @@ func (b *Buffer) ClearLines(start, end int) {
 
 func (b *Buffer) ClearCurrentLine(start, end int) {
 	// sanitize parameters
-	s := clamp(start, 0, b.size.cols)
-	e := clamp(end, 0, b.size.cols)
+	s := clamp(start, 0, b.size.Cols)
+	e := clamp(end, 0, b.size.Cols)
 
 	currentLineToClean := b.lines[b.cursor.Y][s:e]
 	for i := range currentLineToClean {
@@ -207,17 +210,17 @@ func (b *Buffer) ClearCurrentLine(start, end int) {
 
 func (b *Buffer) Tab() {
 	newX := (b.cursor.X / 8 * 8) + 8
-	if newX < b.size.cols {
+	if newX < b.size.Cols {
 		b.cursor.X = newX
 	} else {
-		b.cursor.X = b.size.cols - 1 // if the tab can't be fully added, lets move the cursor to the last column
+		b.cursor.X = b.size.Cols - 1 // if the tab can't be fully added, lets move the cursor to the last column
 	}
 }
 
 func (b *Buffer) makeNewLines(size BufferSize) [][]BrushedRune {
-	newLines := make([][]BrushedRune, size.rows)
+	newLines := make([][]BrushedRune, size.Rows)
 	for r := range newLines {
-		newLines[r] = b.newLine(size.cols)
+		newLines[r] = b.newLine(size.Cols)
 	}
 	return newLines
 }
@@ -233,7 +236,7 @@ func (b *Buffer) Resize(size BufferSize) bool {
 	b.lines = b.makeNewLines(size)
 	b.alternateLines = b.makeNewLines(size)
 	b.resetScrollArea()
-	fmt.Printf("buffer resized rows: %v, cols: %v\n", b.size.rows, b.size.cols)
+	fmt.Printf("buffer resized rows: %v, cols: %v\n", b.size.Rows, b.size.Cols)
 	return true
 }
 
@@ -264,7 +267,7 @@ func (b *Buffer) SwitchToAlternateBuffer() {
 	b.lines = b.alternateLines
 	b.alternateLines = primaryLines
 	b.bufferType = bufAlternate
-	b.ClearLines(0, b.size.rows)
+	b.ClearLines(0, b.size.Rows)
 	b.SetCursor(0, 0)
 }
 
@@ -283,12 +286,12 @@ func (b *Buffer) maxY() int {
 	if b.originMode {
 		return b.scrollAreaEnd
 	}
-	return b.size.rows
+	return b.size.Rows
 }
 
 func (b *Buffer) SetCursor(x, y int) {
 	b.cursor = Cursor{
-		X: clamp(x, 0, b.size.cols-1),
+		X: clamp(x, 0, b.size.Cols-1),
 		Y: clamp(y, b.minY(), b.maxY()-1),
 	}
 	b.nextWriteWraps = false
@@ -327,7 +330,7 @@ func (b *Buffer) scrollDown(lines int) {
 		b.lines[i+lines] = b.lines[i]
 	}
 	for i := b.scrollAreaStart; i < b.scrollAreaStart+lines; i++ {
-		b.lines[i] = b.newLine(b.size.cols)
+		b.lines[i] = b.newLine(b.size.Cols)
 	}
 }
 

@@ -11,10 +11,11 @@ import (
 
 	"gioui.org/io/key"
 	"github.com/creack/pty"
+	"github.com/viktomas/gritty/buffer"
 )
 
 type Controller struct {
-	buffer *Buffer
+	buffer *buffer.Buffer
 	ptmx   *os.File
 	mu     sync.RWMutex
 	render chan struct{}
@@ -29,7 +30,7 @@ func (c *Controller) Started() bool {
 func (c *Controller) Start(shell string, cols, rows int) error {
 	cmd := exec.Command(shell)
 	cmd.Env = append(cmd.Env, "TERM=vt100")
-	c.buffer = NewBuffer(cols, rows)
+	c.buffer = buffer.New(cols, rows)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
 		return fmt.Errorf("failed to start PTY %w", err)
@@ -52,7 +53,7 @@ func (c *Controller) Start(shell string, cols, rows int) error {
 
 func (c *Controller) Resize(cols, rows int) {
 	c.mu.Lock()
-	c.buffer.Resize(BufferSize{cols: cols, rows: rows})
+	c.buffer.Resize(buffer.BufferSize{Cols: cols, Rows: rows})
 	c.mu.Unlock()
 	pty.Setsize(c.ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 
@@ -66,7 +67,7 @@ func (c *Controller) KeyPressed(name string, mod key.Modifiers) {
 	}
 }
 
-func (c *Controller) Runes() []BrushedRune {
+func (c *Controller) Runes() []buffer.BrushedRune {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.buffer.Runes()

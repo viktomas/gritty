@@ -5,10 +5,12 @@ import (
 	"io"
 	"log"
 	"slices"
+
+	"github.com/viktomas/gritty/buffer"
 )
 
 // translateCSI will get a CSI (Control Sequence Introducer) sequence (operation) and enact it on the buffer
-func translateCSI(op operation, b *Buffer, pty io.Writer) {
+func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 	if op.t != icsi {
 		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
 		return
@@ -88,13 +90,13 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 	case 'J':
 		switch op.param(0, 0) {
 		case 0:
-			b.ClearCurrentLine(b.Cursor().X, b.size.cols)
-			b.ClearLines(b.Cursor().Y+1, b.size.rows)
+			b.ClearCurrentLine(b.Cursor().X, b.Size().Cols)
+			b.ClearLines(b.Cursor().Y+1, b.Size().Rows)
 		case 1:
 			b.ClearCurrentLine(0, b.Cursor().X+1)
 			b.ClearLines(0, b.Cursor().Y-1)
 		case 2:
-			b.ClearLines(0, b.size.rows)
+			b.ClearLines(0, b.Size().Rows)
 			b.SetCursor(0, 0)
 		default:
 			log.Println("unknown CSI [J parameter: ", op.params[0])
@@ -102,11 +104,11 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 	case 'K':
 		switch op.param(0, 0) {
 		case 0:
-			b.ClearCurrentLine(b.Cursor().X, b.size.cols)
+			b.ClearCurrentLine(b.Cursor().X, b.Size().Cols)
 		case 1:
 			b.ClearCurrentLine(0, b.Cursor().X+1)
 		case 2:
-			b.ClearCurrentLine(0, b.size.cols)
+			b.ClearCurrentLine(0, b.Size().Cols)
 		default:
 			log.Println("unknown CSI K parameter: ", op.params[0])
 		}
@@ -116,7 +118,7 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 		b.SetCursor(op.param(1, 1)-1, op.param(0, 1)-1)
 	case 'r':
 		start := op.param(0, 1)
-		end := op.param(1, b.size.rows)
+		end := op.param(1, b.Size().Rows)
 		// the DECSTBM docs https://vt100.net/docs/vt510-rm/DECSTBM.html
 		// say that the index you get starts with 1 (first line)
 		// and ends with len(lines)-1 (last line)
@@ -147,15 +149,15 @@ func translateCSI(op operation, b *Buffer, pty io.Writer) {
 			b.ResetBrush()
 		case 1:
 			br := b.Brush()
-			br.bold = true
+			br.Bold = true
 			b.SetBrush(br)
 		case 7:
 			br := b.Brush()
-			br.invert = true
+			br.Invert = true
 			b.SetBrush(br)
 		case 27:
 			br := b.Brush()
-			br.invert = false
+			br.Invert = false
 			b.SetBrush(br)
 		}
 	default:
