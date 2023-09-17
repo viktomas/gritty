@@ -7,20 +7,21 @@ import (
 	"slices"
 
 	"github.com/viktomas/gritty/buffer"
+	"github.com/viktomas/gritty/parser"
 )
 
 // translateCSI will get a CSI (Control Sequence Introducer) sequence (operation) and enact it on the buffer
-func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
-	if op.t != icsi {
+func translateCSI(op parser.Operation, b *buffer.Buffer, pty io.Writer) {
+	if op.T != parser.OpCSI {
 		log.Printf("operation %v is not CSI but it was passed to CSI translator.\n", op)
 		return
 	}
 
 	// handle sequences that have the intermediate character (mostly private sequences)
-	if op.intermediate != "" {
-		switch op.r {
+	if op.Intermediate != "" {
+		switch op.R {
 		case 'c':
-			if op.intermediate == ">" {
+			if op.Intermediate == ">" {
 				// inspired by https://github.com/liamg/darktile/blob/159932ff3ecdc9f7d30ac026480587b84edb895b/internal/app/darktile/termutil/csi.go#L305
 				// we are VT100
 				// for DA2 we'll respond >0;0;0
@@ -33,8 +34,8 @@ func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 		case 'h':
 			// DEC Private Mode Set (DECSET).
 			// source https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
-			if op.intermediate == "?" {
-				switch op.param(0, 0) {
+			if op.Intermediate == "?" {
+				switch op.Param(0, 0) {
 				// Origin Mode (DECOM), VT100.
 				case 6:
 					b.SetOriginMode(true)
@@ -47,8 +48,8 @@ func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 				}
 			}
 		case 'l':
-			if op.intermediate == "?" {
-				switch op.param(0, 0) {
+			if op.Intermediate == "?" {
+				switch op.Param(0, 0) {
 				// Normal Cursor Mode (DECOM)
 				case 6:
 					b.SetOriginMode(false)
@@ -66,29 +67,29 @@ func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 		return
 	}
 
-	switch op.r {
+	switch op.R {
 	// CUU - Cursor up
 	case 'A':
-		dy := op.param(0, 1)
+		dy := op.Param(0, 1)
 		b.MoveCursorRelative(0, -dy)
 	case 'e':
 		fallthrough
 	// CUD - Cursor down
 	case 'B':
-		dy := op.param(0, 1)
+		dy := op.Param(0, 1)
 		b.MoveCursorRelative(0, dy)
 	case 'a': // a is also CUF
 		fallthrough
 	// CUF - cursor forward
 	case 'C':
-		dx := op.param(0, 1)
+		dx := op.Param(0, 1)
 		b.MoveCursorRelative(dx, 0)
 	// CUB - Cursor bacward
 	case 'D':
-		dx := op.param(0, 1)
+		dx := op.Param(0, 1)
 		b.MoveCursorRelative(-dx, 0)
 	case 'J':
-		switch op.param(0, 0) {
+		switch op.Param(0, 0) {
 		case 0:
 			b.ClearCurrentLine(b.Cursor().X, b.Size().Cols)
 			b.ClearLines(b.Cursor().Y+1, b.Size().Rows)
@@ -99,10 +100,10 @@ func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 			b.ClearLines(0, b.Size().Rows)
 			b.SetCursor(0, 0)
 		default:
-			log.Println("unknown CSI [J parameter: ", op.params[0])
+			log.Println("unknown CSI [J parameter: ", op.Params[0])
 		}
 	case 'K':
-		switch op.param(0, 0) {
+		switch op.Param(0, 0) {
 		case 0:
 			b.ClearCurrentLine(b.Cursor().X, b.Size().Cols)
 		case 1:
@@ -110,15 +111,15 @@ func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 		case 2:
 			b.ClearCurrentLine(0, b.Size().Cols)
 		default:
-			log.Println("unknown CSI K parameter: ", op.params[0])
+			log.Println("unknown CSI K parameter: ", op.Params[0])
 		}
 	case 'f': // Horizontal and Vertical Position [row;column] (default = [1,1]) (HVP).
 		fallthrough
 	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).
-		b.SetCursor(op.param(1, 1)-1, op.param(0, 1)-1)
+		b.SetCursor(op.Param(1, 1)-1, op.Param(0, 1)-1)
 	case 'r':
-		start := op.param(0, 1)
-		end := op.param(1, b.Size().Rows)
+		start := op.Param(0, 1)
+		end := op.Param(1, b.Size().Rows)
 		// the DECSTBM docs https://vt100.net/docs/vt510-rm/DECSTBM.html
 		// say that the index you get starts with 1 (first line)
 		// and ends with len(lines)-1 (last line)
@@ -139,7 +140,7 @@ func translateCSI(op operation, b *buffer.Buffer, pty io.Writer) {
 		}
 		// SGR https://vt100.net/docs/vt510-rm/SGR.html
 	case 'm':
-		ps := op.param(0, 0)
+		ps := op.Param(0, 0)
 		if !slices.Contains([]int{0, 1, 7, 27}, ps) {
 			log.Printf("unknown SGR instruction %v\n", op)
 			return

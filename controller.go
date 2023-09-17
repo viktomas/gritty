@@ -12,6 +12,7 @@ import (
 	"gioui.org/io/key"
 	"github.com/creack/pty"
 	"github.com/viktomas/gritty/buffer"
+	"github.com/viktomas/gritty/parser"
 )
 
 type Controller struct {
@@ -80,7 +81,6 @@ func (c *Controller) Render() <-chan struct{} {
 }
 
 func (c *Controller) executeOp(r rune) {
-
 	switch r {
 	case asciiHT:
 		c.buffer.Tab()
@@ -97,22 +97,23 @@ func (c *Controller) executeOp(r rune) {
 	}
 }
 
-func (c *Controller) handleOp(op operation) {
+func (c *Controller) handleOp(op parser.Operation) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	logDebug("%v\n", op)
-	switch op.t {
-	case iexecute:
-		c.executeOp(op.r)
-	case iprint:
-		c.buffer.WriteRune(op.r)
-	case icsi:
+	switch op.T {
+	case parser.OpExecute:
+		c.executeOp(op.R)
+	case parser.OpPrint:
+		c.buffer.WriteRune(op.R)
+	case parser.OpCSI:
 		translateCSI(op, c.buffer, c.ptmx)
-	case iosc:
+	case parser.OpOSC:
 		fmt.Println("unhandled OSC instruction: ", op)
-	case iesc:
-		if op.r >= '@' && op.r <= '_' {
-			c.executeOp(op.r + 0x40)
+	case parser.OpESC:
+		if op.R >= '@' && op.R <= '_' {
+			c.executeOp(op.R + 0x40)
 		} else {
 			fmt.Println("Unknown ESC op: ", op)
 		}
@@ -122,10 +123,10 @@ func (c *Controller) handleOp(op operation) {
 
 }
 
-func processPTY(ptmx *os.File) <-chan operation {
-	out := make(chan operation)
+func processPTY(ptmx *os.File) <-chan parser.Operation {
+	out := make(chan parser.Operation)
 	buf := make([]byte, 1024)
-	parser := NewParser()
+	parser := parser.New()
 	go func() {
 		defer func() {
 			close(out)

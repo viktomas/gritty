@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/viktomas/gritty/buffer"
+	"github.com/viktomas/gritty/parser"
 )
 
 func FuzzController(f *testing.F) {
@@ -11,7 +12,7 @@ func FuzzController(f *testing.F) {
 	f.Add([]byte("\x1b[2r\x1b[A\x8d0"))
 	f.Fuzz(func(t *testing.T, in []byte) {
 		c := &Controller{buffer: buffer.New(10, 10)}
-		ops := NewParser().Parse(in)
+		ops := parser.New().Parse(in)
 		for _, op := range ops {
 			c.handleOp(op)
 		}

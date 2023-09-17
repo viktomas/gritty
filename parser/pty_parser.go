@@ -1,14 +1,15 @@
-package main
+package parser
 
 import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 )
 
-type parser struct {
+type Parser struct {
 	state        parserState
 	privateFlag  int
 	buf          []byte
@@ -17,51 +18,51 @@ type parser struct {
 	osc          []byte
 }
 
-type operationType uint32
+type OperationType uint32
 
-type operation struct {
-	t            operationType
-	r            rune
-	intermediate string
-	params       []int
-	osc          string
+type Operation struct {
+	T            OperationType
+	R            rune
+	Intermediate string
+	Params       []int
+	Osc          string
 }
 
-// param returns parameter on the i index or def(ault) value if the param is missing or 0
-func (o operation) param(i int, def int) int {
-	if len(o.params) == 0 || len(o.params) <= i {
+// Param returns parameter on the i index or def(ault) value if the Param is missing or 0
+func (o Operation) Param(i int, def int) int {
+	if len(o.Params) == 0 || len(o.Params) <= i {
 		return def
 	}
-	if o.params[i] == 0 {
+	if o.Params[i] == 0 {
 		return def
 	}
-	return o.params[i]
+	return o.Params[i]
 }
 
-func (o operation) String() string {
-	switch o.t {
-	case iosc:
-		return fmt.Sprintf("OSC: %q", o.osc)
-	case iprint:
-		return fmt.Sprintf("print: %q", string(o.r))
-	case iexecute:
-		return fmt.Sprintf("execute: %q", string(o.r))
-	case iesc:
-		return fmt.Sprintf("ESC: %s %q", o.intermediate, string(o.r))
-	case icsi:
-		return fmt.Sprintf("CSI: %s %v %q", o.intermediate, o.params, string(o.r))
+func (o Operation) String() string {
+	switch o.T {
+	case OpOSC:
+		return fmt.Sprintf("OSC: %q", o.Osc)
+	case OpPrint:
+		return fmt.Sprintf("print: %q", string(o.R))
+	case OpExecute:
+		return fmt.Sprintf("execute: %q", string(o.R))
+	case OpESC:
+		return fmt.Sprintf("ESC: %s %q", o.Intermediate, string(o.R))
+	case OpCSI:
+		return fmt.Sprintf("CSI: %s %v %q", o.Intermediate, o.Params, string(o.R))
 	default:
-		log.Fatalln("Unknown operation type: ", o.t)
+		log.Fatalln("Unknown operation type: ", o.T)
 		return ""
 	}
 }
 
 const (
-	iexecute operationType = iota
-	iprint
-	iesc
-	icsi
-	iosc
+	OpExecute OperationType = iota
+	OpPrint
+	OpESC
+	OpCSI
+	OpOSC
 )
 
 type parserState int
@@ -77,31 +78,31 @@ const (
 	sOSC
 )
 
-func NewParser() *parser {
-	return &parser{
+func New() *Parser {
+	return &Parser{
 		state: sGround, // technically, this is not necessary because the sGround is 0
 	}
 }
 
-func (d *parser) pExecute(b byte) operation {
+func (d *Parser) pExecute(b byte) Operation {
 	logDebug("Executing: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
-	return operation{t: iexecute, r: rune(b)}
+	return Operation{T: OpExecute, R: rune(b)}
 }
 
-func (d *parser) pPrint(b byte) operation {
+func (d *Parser) pPrint(b byte) Operation {
 	logDebug("Printing: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
-	return operation{t: iprint, r: rune(b)}
+	return Operation{T: OpPrint, R: rune(b)}
 }
 
-func (d *parser) escDispatch(b byte) operation {
+func (d *Parser) escDispatch(b byte) Operation {
 	logDebug("ESC: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
-	return operation{t: iesc, r: rune(b), intermediate: string(d.intermediate)}
+	return Operation{T: OpESC, R: rune(b), Intermediate: string(d.intermediate)}
 }
 
-func (d *parser) csiDispatch(b byte) operation {
+func (d *Parser) csiDispatch(b byte) Operation {
 	logDebug("CSI: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
 	var params []int
@@ -116,26 +117,26 @@ func (d *parser) csiDispatch(b byte) operation {
 			params = append(params, int(i))
 		}
 	}
-	return operation{t: icsi, r: rune(b), params: params, intermediate: string(d.intermediate)}
+	return Operation{T: OpCSI, R: rune(b), Params: params, Intermediate: string(d.intermediate)}
 }
 
-func (d *parser) oscDispatch() operation {
+func (d *Parser) oscDispatch() Operation {
 	logDebug("OSC: %v\n", hex.EncodeToString(d.buf))
 	d.buf = nil
-	return operation{t: iosc, osc: string(d.osc)}
+	return Operation{T: OpOSC, Osc: string(d.osc)}
 }
 
-func (d *parser) clear() {
+func (d *Parser) clear() {
 	d.privateFlag = 0
 	d.intermediate = nil
 	d.params = nil
 }
 
-func (d *parser) collect(b byte) {
+func (d *Parser) collect(b byte) {
 	d.intermediate = append(d.intermediate, b)
 }
 
-func (d *parser) param(b byte) {
+func (d *Parser) param(b byte) {
 	d.params = append(d.params, b)
 }
 
@@ -159,8 +160,8 @@ func isControlChar(b byte) bool {
 	return btw(b, 0x00, 0x17) || b == 0x19 || btw(b, 0x1c, 0x1f)
 }
 
-func (d *parser) Parse(p []byte) []operation {
-	var result []operation
+func (d *Parser) Parse(p []byte) []Operation {
+	var result []Operation
 	for i := 0; i < len(p); i++ {
 		b := p[i]
 		d.buf = append(d.buf, b)
@@ -303,4 +304,10 @@ func (d *parser) Parse(p []byte) []operation {
 		}
 	}
 	return result
+}
+
+func logDebug(f string, vars ...any) {
+	if os.Getenv("gritty_debug") != "" {
+		fmt.Printf(f, vars...)
+	}
 }
