@@ -1,4 +1,4 @@
-package main
+package controller
 
 const (
 	asciiNUL = 0x00 // Null

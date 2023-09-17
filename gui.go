@@ -19,13 +19,14 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 	"github.com/viktomas/gritty/buffer"
+	"github.com/viktomas/gritty/controller"
 	"golang.org/x/image/math/fixed"
 )
 
 const monoTypeface = "go mono, monospaced"
 const fontSize = 16
 
-func StartGui(shell string, controller *Controller) {
+func StartGui(shell string, controller *controller.Controller) {
 	go func() {
 		w := app.NewWindow()
 		if err := loop(w, shell, controller); err != nil {
@@ -36,7 +37,7 @@ func StartGui(shell string, controller *Controller) {
 	app.Main()
 }
 
-func loop(w *app.Window, sh string, controller *Controller) error {
+func loop(w *app.Window, sh string, controller *controller.Controller) error {
 
 	shaper := text.NewShaper(text.WithCollection(gofont.Collection()))
 

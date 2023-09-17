@@ -1,4 +1,4 @@
-package main
+package controller
 
 import (
 	"errors"
@@ -21,7 +21,7 @@ type Controller struct {
 	mu     sync.RWMutex
 	render chan struct{}
 	in     chan []byte
-	done   chan struct{}
+	Done   chan struct{}
 }
 
 func (c *Controller) Started() bool {
@@ -39,14 +39,14 @@ func (c *Controller) Start(shell string, cols, rows int) error {
 	render := make(chan struct{})
 	c.render = render
 	c.ptmx = ptmx
-	c.done = make(chan struct{})
+	c.Done = make(chan struct{})
 	ops := processPTY(c.ptmx)
 	go func() {
 		for op := range ops {
 			c.handleOp(op)
 			c.render <- struct{}{}
 		}
-		close(c.done)
+		close(c.Done)
 	}()
 	return nil
 
@@ -61,6 +61,7 @@ func (c *Controller) Resize(cols, rows int) {
 }
 
 func (c *Controller) KeyPressed(name string, mod key.Modifiers) {
+	logDebug("key pressed %v, modifiers: %v", name, mod)
 	_, err := c.ptmx.Write(keyToBytes(name, mod))
 	if err != nil {
 		log.Fatalf("writing key into PTY failed with error: %v", err)
@@ -147,4 +148,10 @@ func processPTY(ptmx *os.File) <-chan parser.Operation {
 		}
 	}()
 	return out
+}
+
+func logDebug(f string, vars ...any) {
+	if os.Getenv("gritty_debug") != "" {
+		fmt.Printf(f, vars...)
+	}
 }

@@ -1,18 +1,9 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
-
-func logDebug(f string, vars ...any) {
-	if os.Getenv("gritty_debug") != "" {
-		fmt.Printf(f, vars...)
-	}
-}
+import "github.com/viktomas/gritty/controller"
 
 func main() {
 	shell := "/bin/sh"
-	controller := &Controller{}
+	controller := &controller.Controller{}
 	StartGui(shell, controller)
 }
