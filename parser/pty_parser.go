@@ -160,6 +160,7 @@ func isControlChar(b byte) bool {
 	return btw(b, 0x00, 0x17) || b == 0x19 || btw(b, 0x1c, 0x1f)
 }
 
+// Parse parses bytes received from PTY based on the excellent state diagram by Paul Williams https://www.vt100.net/emu/dec_ansi_parser
 func (d *Parser) Parse(p []byte) []Operation {
 	var result []Operation
 	for i := 0; i < len(p); i++ {
