@@ -29,7 +29,7 @@ const fontSize = 16
 
 func StartGui(shell string, controller *controller.Controller) {
 	go func() {
-		w := app.NewWindow()
+		w := app.NewWindow(app.Title("Gritty"))
 		if err := loop(w, shell, controller); err != nil {
 			log.Fatal(err)
 		}
