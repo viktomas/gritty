@@ -16,6 +16,7 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
 	"github.com/viktomas/gritty/buffer"
@@ -51,7 +52,7 @@ func loop(w *app.Window, sh string, controller *controller.Controller) error {
 
 	for {
 		select {
-		case <-controller.done:
+		case <-controller.Done:
 			return nil
 		case <-cursorBlinkTicker.C:
 			w.Invalidate()
@@ -61,6 +62,13 @@ func loop(w *app.Window, sh string, controller *controller.Controller) error {
 				return e.Err
 			case system.FrameEvent:
 				gtx := layout.NewContext(&ops, e)
+				// paint the whole window with the background color
+				// FIXME: This is a temporary heck, the ideal solution would be to
+				// shrink the window to the exact character grid after each resize
+				// (with some debouncing)
+				paint.ColorOp{Color: defaultBG}.Add(gtx.Ops)
+				paint.PaintOp{}.Add(gtx.Ops)
+
 				if e.Size != windowSize {
 					windowSize = e.Size // make sure this code doesn't run until we resized again
 					bufferSize := getBufferSize(gtx, fontSize, e.Size, shaper)
@@ -91,7 +99,6 @@ func loop(w *app.Window, sh string, controller *controller.Controller) error {
 				// Capture and handle keyboard input
 				for _, ev := range gtx.Events(&location) {
 					if ke, ok := ev.(key.Event); ok {
-						logDebug("key pressed %v", ke)
 						if ke.State == key.Press {
 							controller.KeyPressed(ke.Name, ke.Modifiers)
 						}
