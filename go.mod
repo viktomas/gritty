@@ -1,6 +1,6 @@
 module github.com/viktomas/gritty
 
-go 1.21.0
+go 1.21.1
 
 require (
 	gioui.org v0.2.0
