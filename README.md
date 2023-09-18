@@ -4,6 +4,8 @@ Gritty is a terminal emulator written in Go and Gio UI Framework, focusing on re
 
 You could use this emulator for normal work, but I created it as a reference implementation of vt100-ish terminal emulator. (I use [kitty](https://sw.kovidgoyal.net/kitty/), and I'm happy with it. I only wanted to understand how terminals work.
 
+![Gritty GIF](https://github.com/viktomas/gritty/blob/777f7faed94ebfd2ae3b7d60de106346ab9307cb/doc/gritty-1.gif?raw=true)
+
 Run with `go run .`, test with `go test .`.
 
 ## Architecture
