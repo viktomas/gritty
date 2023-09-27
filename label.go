@@ -22,11 +22,6 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-var (
-	defaultFG = color.NRGBA{A: 0xff, R: 0xeb, G: 0xdb, B: 0xb2}
-	defaultBG = color.NRGBA{A: 0xff, R: 0x28, G: 0x28, B: 0x28}
-)
-
 // Label is a widget code copied from https://git.sr.ht/~eliasnaur/gio/tree/313c488ec356872a14dab0c0ac0fd73b45a596cf/item/widget/label.go
 // and changed so it can render grid of characters. Each character can have
 // different background and foreground colors and a few other attributes
@@ -228,21 +223,18 @@ func shouldBlinkInvert() bool {
 	return (currentTime.UnixNano()/int64(time.Millisecond)/500)%2 == 0
 }
 
+func convertColor(c buffer.Color) color.NRGBA {
+	return color.NRGBA{A: 0xff, R: c.R, G: c.G, B: c.B}
+}
+
 // toPaintedGlyph transfers GUI-agnostic BrushedRune into a specific way
 // we render the characters in Gio
 func toPaintedGlyph(g text.Glyph, br buffer.BrushedRune) paintedGlyph {
 	defaultGlyph := paintedGlyph{
 		r:  br.R,
 		g:  g,
-		fg: defaultFG,
-		bg: defaultBG,
-	}
-
-	if br.Brush.FG.A != 0 {
-		defaultGlyph.fg = br.Brush.FG
-	}
-	if br.Brush.BG.A != 0 {
-		defaultGlyph.bg = br.Brush.BG
+		fg: convertColor(br.Brush.FG),
+		bg: convertColor(br.Brush.BG),
 	}
 
 	if br.Brush.Bold {

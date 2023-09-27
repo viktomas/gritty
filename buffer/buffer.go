@@ -2,7 +2,6 @@ package buffer
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 )
 
@@ -11,8 +10,8 @@ type Cursor struct {
 }
 
 type Brush struct {
-	FG     color.NRGBA
-	BG     color.NRGBA
+	FG     Color
+	BG     Color
 	Blink  bool
 	Invert bool
 	Bold   bool
@@ -92,7 +91,7 @@ func (b *Buffer) ScrollUp(n int) {
 
 // TODO maybe remove in favour of SetBrush(Brush{})
 func (b *Buffer) ResetBrush() {
-	b.brush = Brush{}
+	b.brush = Brush{FG: DefaultFG, BG: DefaultBG}
 }
 
 func (b *Buffer) Brush() Brush {

@@ -66,7 +66,7 @@ func loop(w *app.Window, sh string, controller *controller.Controller) error {
 				// FIXME: This is a temporary heck, the ideal solution would be to
 				// shrink the window to the exact character grid after each resize
 				// (with some debouncing)
-				paint.ColorOp{Color: defaultBG}.Add(gtx.Ops)
+				paint.ColorOp{Color: convertColor(buffer.DefaultBG)}.Add(gtx.Ops)
 				paint.PaintOp{}.Add(gtx.Ops)
 
 				if e.Size != windowSize {
