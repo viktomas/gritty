@@ -91,7 +91,7 @@ func (c *Controller) executeOp(r rune) {
 		c.buffer.CR()
 	case asciiLF:
 		c.buffer.LF()
-	case 0x8d:
+	case 0x8d: // this is coming from ESC M https://vt100.net/docs/vt100-ug/chapter3.html
 		c.buffer.ReverseIndex()
 	default:
 		fmt.Printf("Unknown control character 0x%x", r)
@@ -113,7 +113,7 @@ func (c *Controller) handleOp(op parser.Operation) {
 	case parser.OpOSC:
 		fmt.Println("unhandled OSC instruction: ", op)
 	case parser.OpESC:
-		if op.R >= '@' && op.R <= '_' {
+		if op.R >= '@' && op.R <= '_' && op.Intermediate == "" {
 			c.executeOp(op.R + 0x40)
 		} else {
 			fmt.Println("Unknown ESC op: ", op)

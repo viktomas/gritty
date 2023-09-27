@@ -200,6 +200,11 @@ func translateCSI(op parser.Operation, b *buffer.Buffer, pty io.Writer) {
 			default:
 				log.Printf("unknown SGR instruction %v\n", op)
 			}
+
+		case 39:
+			br := b.Brush()
+			br.FG = buffer.DefaultFG
+			b.SetBrush(br)
 		case 48:
 			switch op.Param(1, 0) {
 			case 5:
@@ -215,6 +220,10 @@ func translateCSI(op parser.Operation, b *buffer.Buffer, pty io.Writer) {
 			default:
 				log.Printf("unknown SGR instruction %v\n", op)
 			}
+		case 49:
+			br := b.Brush()
+			br.BG = buffer.DefaultBG
+			b.SetBrush(br)
 		default:
 			log.Printf("unknown SGR instruction %v\n", op)
 		}
