@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -26,6 +25,8 @@ type Operation struct {
 	Intermediate string
 	Params       []int
 	Osc          string
+	// Raw is the sequence of bytes that the parser processed to make this operation
+	Raw []byte
 }
 
 // Param returns parameter on the i index or def(ault) value if the Param is missing or 0
@@ -39,22 +40,27 @@ func (o Operation) Param(i int, def int) int {
 	return o.Params[i]
 }
 
+// padding defines how many characters we want to ensure before the Raw: in the output
+const padding = 40
+
 func (o Operation) String() string {
+	var opString string
 	switch o.T {
 	case OpOSC:
-		return fmt.Sprintf("OSC: %q", o.Osc)
+		opString = fmt.Sprintf("OSC: %q", o.Osc)
 	case OpPrint:
-		return fmt.Sprintf("print: %q", string(o.R))
+		opString = fmt.Sprintf("print: %q", string(o.R))
 	case OpExecute:
-		return fmt.Sprintf("execute: %q", string(o.R))
+		opString = fmt.Sprintf("execute: %q", string(o.R))
 	case OpESC:
-		return fmt.Sprintf("ESC: %s %q", o.Intermediate, string(o.R))
+		opString = fmt.Sprintf("ESC: %s %q", o.Intermediate, string(o.R))
 	case OpCSI:
-		return fmt.Sprintf("CSI: %s %v %q", o.Intermediate, o.Params, string(o.R))
+		opString = fmt.Sprintf("CSI: %s %v %q", o.Intermediate, o.Params, string(o.R))
 	default:
 		log.Fatalln("Unknown operation type: ", o.T)
 		return ""
 	}
+	return fmt.Sprintf("%-*sRaw: %s", padding, opString, hex.EncodeToString(o.Raw))
 }
 
 const (
@@ -85,26 +91,24 @@ func New() *Parser {
 }
 
 func (d *Parser) pExecute(b byte) Operation {
-	logDebug("Executing: %v\n", hex.EncodeToString(d.buf))
+	op := Operation{T: OpExecute, R: rune(b), Raw: d.buf}
 	d.buf = nil
-	return Operation{T: OpExecute, R: rune(b)}
+	return op
 }
 
 func (d *Parser) pPrint(b byte) Operation {
-	logDebug("Printing: %v\n", hex.EncodeToString(d.buf))
+	op := Operation{T: OpPrint, R: rune(b), Raw: d.buf}
 	d.buf = nil
-	return Operation{T: OpPrint, R: rune(b)}
+	return op
 }
 
 func (d *Parser) escDispatch(b byte) Operation {
-	logDebug("ESC: %v\n", hex.EncodeToString(d.buf))
+	op := Operation{T: OpESC, R: rune(b), Intermediate: string(d.intermediate), Raw: d.buf}
 	d.buf = nil
-	return Operation{T: OpESC, R: rune(b), Intermediate: string(d.intermediate)}
+	return op
 }
 
 func (d *Parser) csiDispatch(b byte) Operation {
-	logDebug("CSI: %v\n", hex.EncodeToString(d.buf))
-	d.buf = nil
 	var params []int
 	if len(d.params) > 0 {
 		stringNumbers := strings.Split(string(d.params), ";")
@@ -117,13 +121,15 @@ func (d *Parser) csiDispatch(b byte) Operation {
 			params = append(params, int(i))
 		}
 	}
-	return Operation{T: OpCSI, R: rune(b), Params: params, Intermediate: string(d.intermediate)}
+	op := Operation{T: OpCSI, R: rune(b), Params: params, Intermediate: string(d.intermediate), Raw: d.buf}
+	d.buf = nil
+	return op
 }
 
 func (d *Parser) oscDispatch() Operation {
-	logDebug("OSC: %v\n", hex.EncodeToString(d.buf))
+	op := Operation{T: OpOSC, Osc: string(d.osc), Raw: d.buf}
 	d.buf = nil
-	return Operation{T: OpOSC, Osc: string(d.osc)}
+	return op
 }
 
 func (d *Parser) clear() {
@@ -305,10 +311,4 @@ func (d *Parser) Parse(p []byte) []Operation {
 		}
 	}
 	return result
-}
-
-func logDebug(f string, vars ...any) {
-	if os.Getenv("gritty_debug") != "" {
-		fmt.Printf(f, vars...)
-	}
 }
