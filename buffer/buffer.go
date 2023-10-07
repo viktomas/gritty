@@ -70,9 +70,10 @@ func New(cols, rows int) *Buffer {
 }
 
 func (b *Buffer) CR() {
-	b.cursor.X = 0
+	b.SetCursor(0, b.cursor.Y)
 }
 func (b *Buffer) LF() {
+	b.nextWriteWraps = false
 	b.cursor.Y++
 	if b.cursor.Y >= b.scrollAreaEnd {
 		b.ScrollUp(1)

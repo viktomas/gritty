@@ -294,6 +294,28 @@ func TestReverseIndex(t *testing.T) {
 	})
 }
 
+func TestLFResetsWrappingNextLine(t *testing.T) {
+	b := makeTestBuffer(t, `
+	___
+	___
+	___
+	`, 0, 0)
+	expected := trimExpectation(t, `
+	xxx
+	z__
+	___
+	`)
+	b.WriteRune('x')
+	b.WriteRune('x')
+	b.WriteRune('x')
+	b.CR()
+	b.LF()
+	b.WriteRune('z')
+	if b.String() != expected {
+		t.Fatalf("The line feed didn't reset the line wrapping\nExpected:\n%s\nGot:\n%s", expected, b.String())
+	}
+}
+
 func makeTestBuffer(t testing.TB, content string, x, y int) *Buffer {
 	t.Helper()
 	rows := strings.Split(content, "\n")
