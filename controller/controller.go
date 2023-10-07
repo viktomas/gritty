@@ -61,7 +61,7 @@ func (c *Controller) Resize(cols, rows int) {
 }
 
 func (c *Controller) KeyPressed(name string, mod key.Modifiers) {
-	logDebug("key pressed %v, modifiers: %v", name, mod)
+	logDebug("key pressed %v, modifiers: %v\n", name, mod)
 	_, err := c.ptmx.Write(keyToBytes(name, mod))
 	if err != nil {
 		log.Fatalf("writing key into PTY failed with error: %v", err)
@@ -94,7 +94,7 @@ func (c *Controller) executeOp(r rune) {
 	case 0x8d: // this is coming from ESC M https://vt100.net/docs/vt100-ug/chapter3.html
 		c.buffer.ReverseIndex()
 	default:
-		fmt.Printf("Unknown control character 0x%x", r)
+		fmt.Printf("Unknown control character 0x%x\n", r)
 	}
 }
 
