@@ -17,7 +17,7 @@ func keyToBytes(name string, mod key.Modifiers) []byte {
 	case key.NameReturn:
 		return []byte("\r")
 	case key.NameDeleteBackward:
-		return []byte{asciiBS}
+		return []byte{asciiDEL}
 	case key.NameSpace:
 		return []byte(" ")
 	case key.NameEscape:
