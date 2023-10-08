@@ -328,7 +328,7 @@ func TestDeleteCharacter(t *testing.T) {
 		`)
 		b.DeleteCharacter(3)
 		if b.String() != expected {
-			t.Fatalf("Delete in line didn't remove 3 characters from the first e\nExpected:\n%s\nGot:\n%s", expected, b.String())
+			t.Fatalf("DeleteCharacter didn't remove 3 characters from the first e\nExpected:\n%s\nGot:\n%s", expected, b.String())
 		}
 	})
 
@@ -358,7 +358,72 @@ func TestDeleteCharacter(t *testing.T) {
 		`)
 		b.DeleteCharacter(1)
 		if b.String() != expected {
-			t.Fatalf("Delete in line didn't remove 3 characters from the first e\nExpected:\n%s\nGot:\n%s", expected, b.String())
+			t.Fatalf("DeleteCharacter didn't remove 3 characters from the first e\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+}
+
+func TestDeleteLine(t *testing.T) {
+	t.Run("deletes lines in the middle", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 1)
+		expected := trimExpectation(t, `
+		a
+		d
+		e
+		_
+		_
+		`)
+		b.DeleteLine(2)
+		if b.String() != expected {
+			t.Fatalf("DeleteLine didn't remove 2 lines after 'a'\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("deletes only one line", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 1)
+		expected := trimExpectation(t, `
+		a
+		c
+		d
+		e
+		_
+		`)
+		b.DeleteLine(1)
+		if b.String() != expected {
+			t.Fatalf("DeleteLine didn't remove the line after 'a'\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("deletes lines when the parameter is too large", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 3)
+		expected := trimExpectation(t, `
+		a
+		b
+		c
+		_
+		_
+		`)
+		b.DeleteLine(20)
+		if b.String() != expected {
+			t.Fatalf("DeleteLine didn't remove the last 2 lines\nExpected:\n%s\nGot:\n%s", expected, b.String())
 		}
 	})
 }

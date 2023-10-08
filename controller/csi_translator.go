@@ -112,6 +112,8 @@ func translateCSI(op parser.Operation, b *buffer.Buffer, pty io.Writer) {
 		default:
 			log.Println("unknown CSI K parameter: ", op.Params[0])
 		}
+	case 'M': // DL - Delete Line - https://vt100.net/docs/vt510-rm/DL.html
+		b.DeleteLine(op.Param(0, 1))
 	case 'f': // Horizontal and Vertical Position [row;column] (default = [1,1]) (HVP).
 		fallthrough
 	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).

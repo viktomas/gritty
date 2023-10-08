@@ -42,9 +42,11 @@ type Buffer struct {
 	// Without this field, we would have to CR LF straight after
 	// writing the last rune in the row. But LF causes screen to scroll on the last line
 	// which would make it impossible to write the last character on the screen
-	nextWriteWraps  bool
+	nextWriteWraps bool
+	// scrollAreaStart is the index of the first line that will scroll
 	scrollAreaStart int
-	scrollAreaEnd   int
+	// scrollAreaEnd is the index of the last line + 1 that will scroll (it's one larger, same as len(slice))
+	scrollAreaEnd int
 	// originMode controls where the cursor can be placed with relationship to the scrolling region (margins)
 	// false - the origin is at the upper-left character position on the screen. Line and column numbers are, therefore, independent of current margin settings. The cursor may be positioned outside the margins with a cursor position (CUP) or horizontal and vertical position (HVP) control.
 	//
@@ -205,6 +207,14 @@ func (b *Buffer) DeleteCharacter(n int) {
 	copy(line[b.cursor.X:], line[b.cursor.X+p:])
 	for i := len(line) - p; i < len(line); i++ {
 		line[i] = b.MakeRune(' ')
+	}
+}
+
+func (b *Buffer) DeleteLine(n int) {
+	m := clamp(n, 1, b.scrollAreaEnd-b.cursor.Y)
+	copy(b.lines[b.cursor.Y:], b.lines[b.cursor.Y+m:])
+	for i := b.scrollAreaEnd - m; i < b.scrollAreaEnd; i++ {
+		b.lines[i] = b.newLine(b.size.Cols)
 	}
 }
 
