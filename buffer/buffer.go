@@ -212,8 +212,16 @@ func (b *Buffer) DeleteCharacter(n int) {
 
 func (b *Buffer) DeleteLine(n int) {
 	m := clamp(n, 1, b.scrollAreaEnd-b.cursor.Y)
-	copy(b.lines[b.cursor.Y:], b.lines[b.cursor.Y+m:])
+	copy(b.lines[b.cursor.Y:], b.lines[b.cursor.Y+m:b.scrollAreaEnd])
 	for i := b.scrollAreaEnd - m; i < b.scrollAreaEnd; i++ {
+		b.lines[i] = b.newLine(b.size.Cols)
+	}
+}
+
+func (b *Buffer) InsertLine(n int) {
+	m := clamp(n, 1, b.scrollAreaEnd-b.cursor.Y)
+	copy(b.lines[b.cursor.Y+m:b.scrollAreaEnd], b.lines[b.cursor.Y:])
+	for i := b.cursor.Y; i < b.cursor.Y+m; i++ {
 		b.lines[i] = b.newLine(b.size.Cols)
 	}
 }

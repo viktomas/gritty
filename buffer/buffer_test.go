@@ -426,6 +426,117 @@ func TestDeleteLine(t *testing.T) {
 			t.Fatalf("DeleteLine didn't remove the last 2 lines\nExpected:\n%s\nGot:\n%s", expected, b.String())
 		}
 	})
+
+	t.Run("doesn't write over the scroll area", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 0)
+		expected := trimExpectation(t, `
+		a
+		c
+		_
+		d
+		e
+		`)
+		b.SetScrollArea(0, 3)
+		b.SetCursor(0, 1)
+		b.DeleteLine(1)
+		if b.String() != expected {
+			t.Fatalf("DeleteLine should have not affected the scroll area\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+}
+
+func TestInsertLine(t *testing.T) {
+	t.Run("inserts lines in the middle", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 1)
+		expected := trimExpectation(t, `
+		a
+		_
+		_
+		b
+		c
+		`)
+		b.InsertLine(2)
+		if b.String() != expected {
+			t.Fatalf("InsertLine didn't insert 2 lines after 'a'\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("inserts only one line", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 1)
+		expected := trimExpectation(t, `
+		a
+		_
+		b
+		c
+		d
+		`)
+		b.InsertLine(1)
+		if b.String() != expected {
+			t.Fatalf("InsertLine didn't insert the line after 'a'\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("inserts lines when the parameter is too large", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 3)
+		expected := trimExpectation(t, `
+		a
+		b
+		c
+		_
+		_
+		`)
+		b.InsertLine(20)
+		if b.String() != expected {
+			t.Fatalf("InsertLine didn't insert the last 2 lines\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("doesn't write over the scroll area", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		a
+		b
+		c
+		d
+		e
+		`, 0, 0)
+		expected := trimExpectation(t, `
+		a
+		_
+		b
+		d
+		e
+		`)
+		b.SetScrollArea(0, 3)
+		b.SetCursor(0, 1)
+		b.InsertLine(1)
+		if b.String() != expected {
+			t.Fatalf("InsertLine should have not affected the scroll area\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
 }
 
 func makeTestBuffer(t testing.TB, content string, x, y int) *Buffer {

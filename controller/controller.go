@@ -30,7 +30,7 @@ func (c *Controller) Started() bool {
 
 func (c *Controller) Start(shell string, cols, rows int) error {
 	cmd := exec.Command(shell)
-	cmd.Env = append(cmd.Env, "TERM=vt100")
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 	c.buffer = buffer.New(cols, rows)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
