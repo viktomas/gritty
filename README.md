@@ -4,11 +4,11 @@ Gritty is a terminal emulator written in Go and Gio UI Framework, focusing on re
 
 You could use this emulator for normal work, but I created it as a reference implementation of vt100-ish terminal emulator. (I use [kitty](https://sw.kovidgoyal.net/kitty/), and I'm happy with it. I only wanted to understand how terminals work.)
 
-![Gritty GIF](https://github.com/viktomas/gritty/blob/777f7faed94ebfd2ae3b7d60de106346ab9307cb/doc/gritty-1.gif?raw=true)
+![Gritty GIF](https://github.com/viktomas/gritty/blob/391dd1ea57866de05d118fdd08204f514087c157/doc/gritty-color-2.gif?raw=true)
 
 ## Using Gritty
 
-Ensure that [Gio is installed on your system](https://gioui.org/doc/install). Run with `go run .`, test with `go test .`.
+Ensure that [Gio is installed on your system](https://gioui.org/doc/install). Run with `go run .`, test with `go test .`. Gritty starts `/bin/sh`.
 
 ## Architecture
 
@@ -48,6 +48,7 @@ G --"read buffer"--> C
 ## Resources
 
 - [VT510 user manual - Contents](https://vt100.net/docs/vt510-rm/contents.html)
+- [ANSI Control Functions Summary](https://vt100.net/docs/vt510-rm/chapter4.html#S4.1)
 - [Digital VT100 User Guide: Programmer Information - chapter 3](https://vt100.net/docs/vt100-ug/chapter3.html)
 - [asciinema/avt](https://github.com/asciinema/avt/blob/main/src/vt.rs) - extremely clear implementation of vt100-ish terminal emulator in rust
 - [ANSI escape code - Wikipedia](https://en.wikipedia.org/wiki/ANSI_escape_code)
