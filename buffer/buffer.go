@@ -197,6 +197,18 @@ func (b *Buffer) ClearLines(start, end int) {
 	}
 }
 
+// DeleteCharacter removes n characters from cursor onwards (including the character under cursor)
+// the characters after the deleted gap are then shifted to the cursor position
+func (b *Buffer) DeleteCharacter(n int) {
+	p := clamp(n, 1, b.size.Cols-b.cursor.X)
+	line := b.lines[b.cursor.Y]
+	copy(line[b.cursor.X:], line[b.cursor.X+p:])
+	for i := len(line) - p; i < len(line); i++ {
+		line[i] = b.MakeRune(' ')
+	}
+}
+
+// ClearCurrentLine replaces the characters between start (inclusive) and end (exclusive) with spaces
 func (b *Buffer) ClearCurrentLine(start, end int) {
 	// sanitize parameters
 	s := clamp(start, 0, b.size.Cols)

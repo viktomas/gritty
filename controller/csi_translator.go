@@ -116,6 +116,10 @@ func translateCSI(op parser.Operation, b *buffer.Buffer, pty io.Writer) {
 		fallthrough
 	case 'H': // Cursor Position [row;column] (default = [1,1]) (CUP).
 		b.SetCursor(op.Param(1, 1)-1, op.Param(0, 1)-1)
+	case 'P': // DCH - Delete character - https://vt100.net/docs/vt510-rm/DCH.html
+		b.DeleteCharacter(op.Param(0, 1))
+	case 'X': //ECH—Erase Character https://vt100.net/docs/vt510-rm/ECH.html
+		b.ClearCurrentLine(b.Cursor().X, b.Cursor().X+op.Param(0, 1))
 	case 'r':
 		start := op.Param(0, 1)
 		end := op.Param(1, b.Size().Rows)

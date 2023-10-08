@@ -316,6 +316,53 @@ func TestLFResetsWrappingNextLine(t *testing.T) {
 	}
 }
 
+func TestDeleteCharacter(t *testing.T) {
+	t.Run("deletes from a middle of the line", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		hello_world
+		___________
+		`, 1, 0)
+		expected := trimExpectation(t, `
+		ho_world___
+		___________
+		`)
+		b.DeleteCharacter(3)
+		if b.String() != expected {
+			t.Fatalf("Delete in line didn't remove 3 characters from the first e\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("handles when the parameter is too large", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		hello_world
+		___________
+		`, 6, 0)
+		expected := trimExpectation(t, `
+		hello______
+		___________
+		`)
+		b.DeleteCharacter(10)
+		if b.String() != expected {
+			t.Fatalf("We didn't remove the 'world' correctly\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+
+	t.Run("can delete only one character", func(t *testing.T) {
+		b := makeTestBuffer(t, `
+		hello_world
+		___________
+		`, 1, 0)
+		expected := trimExpectation(t, `
+		hllo_world_
+		___________
+		`)
+		b.DeleteCharacter(1)
+		if b.String() != expected {
+			t.Fatalf("Delete in line didn't remove 3 characters from the first e\nExpected:\n%s\nGot:\n%s", expected, b.String())
+		}
+	})
+}
+
 func makeTestBuffer(t testing.TB, content string, x, y int) *Buffer {
 	t.Helper()
 	rows := strings.Split(content, "\n")
